@@ -30,23 +30,52 @@ class CategoryController extends BaseApiController
 
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        // Debug: Log the raw request
+        \Log::info('Raw request content: ' . $request->getContent());
+        \Log::info('Request all: ' . json_encode($request->all()));
+        
+        // Try to get data from raw JSON if request->all() is empty
+        $data = $request->all();
+        if (empty($data)) {
+            $rawData = json_decode($request->getContent(), true);
+            if ($rawData) {
+                $data = $rawData;
+                \Log::info('Using raw JSON data: ' . json_encode($data));
+            }
+        }
+        
+        $validator = Validator::make($data, [
             'name' => 'required|string|max:255|unique:categories,name',
             'description' => 'nullable|string|max:500',
             'is_active' => 'boolean',
         ]);
 
         if ($validator->fails()) {
+            \Log::info('Validation failed: ' . json_encode($validator->errors()));
             return $this->validationErrorResponse($validator->errors());
         }
 
-        $category = Category::create($request->only(['name','description']) + ['is_active' => $request->boolean('is_active', true)]);
+        $category = Category::create([
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'is_active' => $data['is_active'] ?? true
+        ]);
+        
         return $this->successResponse($category, 'Category created', 201);
     }
 
     public function update(Request $request, Category $category)
     {
-        $validator = Validator::make($request->all(), [
+        // Try to get data from raw JSON if request->all() is empty
+        $data = $request->all();
+        if (empty($data)) {
+            $rawData = json_decode($request->getContent(), true);
+            if ($rawData) {
+                $data = $rawData;
+            }
+        }
+        
+        $validator = Validator::make($data, [
             'name' => 'sometimes|required|string|max:255|unique:categories,name,' . $category->id,
             'description' => 'nullable|string|max:500',
             'is_active' => 'boolean',
@@ -56,7 +85,12 @@ class CategoryController extends BaseApiController
             return $this->validationErrorResponse($validator->errors());
         }
 
-        $category->update($request->only(['name','description','is_active']));
+        $updateData = [];
+        if (isset($data['name'])) $updateData['name'] = $data['name'];
+        if (isset($data['description'])) $updateData['description'] = $data['description'];
+        if (isset($data['is_active'])) $updateData['is_active'] = $data['is_active'];
+        
+        $category->update($updateData);
         return $this->successResponse($category->fresh(), 'Category updated');
     }
 

@@ -2,15 +2,9 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/auth/Login';
-import Register from './pages/auth/Register';
-import ForgotPassword from './pages/auth/ForgotPassword';
-import ResetPassword from './pages/auth/ResetPassword';
 import Dashboard from './pages/Dashboard';
-import Products from './pages/products/Products';
-import Categories from './pages/products/Categories';
-import POS from './pages/pos/POS';
-import Orders from './pages/orders/Orders';
-import OrderDetails from './pages/orders/OrderDetails';
+import Products from './pages/Products';
+import Categories from './pages/Categories';
 import Layout from './components/Layout';
 import LoadingSpinner from './components/LoadingSpinner';
 
@@ -54,21 +48,6 @@ const AppRoutes: React.FC = () => {
           <Login />
         </PublicRoute>
       } />
-      <Route path="/register" element={
-        <PublicRoute>
-          <Register />
-        </PublicRoute>
-      } />
-      <Route path="/forgot-password" element={
-        <PublicRoute>
-          <ForgotPassword />
-        </PublicRoute>
-      } />
-      <Route path="/reset-password" element={
-        <PublicRoute>
-          <ResetPassword />
-        </PublicRoute>
-      } />
 
       {/* Protected routes */}
       <Route path="/" element={
@@ -78,11 +57,15 @@ const AppRoutes: React.FC = () => {
       }>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
-        <Route path="pos" element={<POS />} />
-        <Route path="orders" element={<Orders />} />
-        <Route path="orders/:id" element={<OrderDetails />} />
+        <Route path="inventory" element={<div className="text-center py-12"><h1 className="text-2xl font-bold">Inventory Management</h1><p className="text-gray-600 mt-2">Coming soon...</p></div>} />
+        <Route path="pos" element={<div className="text-center py-12"><h1 className="text-2xl font-bold">POS System</h1><p className="text-gray-600 mt-2">Coming soon...</p></div>} />
         <Route path="products" element={<Products />} />
         <Route path="categories" element={<Categories />} />
+        <Route path="customers" element={<div className="text-center py-12"><h1 className="text-2xl font-bold">Customer Management</h1><p className="text-gray-600 mt-2">Coming soon...</p></div>} />
+        <Route path="orders" element={<div className="text-center py-12"><h1 className="text-2xl font-bold">Order Management</h1><p className="text-gray-600 mt-2">Coming soon...</p></div>} />
+        <Route path="reports" element={<div className="text-center py-12"><h1 className="text-2xl font-bold">Reports</h1><p className="text-gray-600 mt-2">Coming soon...</p></div>} />
+        <Route path="users" element={<div className="text-center py-12"><h1 className="text-2xl font-bold">User Management</h1><p className="text-gray-600 mt-2">Coming soon...</p></div>} />
+        <Route path="settings" element={<div className="text-center py-12"><h1 className="text-2xl font-bold">Settings</h1><p className="text-gray-600 mt-2">Coming soon...</p></div>} />
       </Route>
 
       {/* Catch all route */}

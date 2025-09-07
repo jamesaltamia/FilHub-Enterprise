@@ -1,250 +1,182 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authAPI } from '../services/api';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import type { ReactNode } from "react";
+import { api } from "../utils/api";
 
-// User interface
-export interface User {
+interface User {
   id: number;
   name: string;
   email: string;
   phone?: string;
   address?: string;
-  role: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  is_active?: boolean;
+  roles?: Array<{
+    id: number;
+    name: string;
+    description: string;
+  }>;
 }
 
-// Auth context interface
 interface AuthContextType {
   user: User | null;
   token: string | null;
+  role: string | null;
+  permissions: string[];
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (userData: {
-    name: string;
-    email: string;
-    password: string;
-    password_confirmation: string;
-    phone?: string;
-    address?: string;
-  }) => Promise<void>;
-  logout: () => Promise<void>;
-  forgotPassword: (email: string) => Promise<void>;
-  verifyOtp: (email: string, otp: string) => Promise<void>;
-  resetPassword: (email: string, otp: string, password: string, password_confirmation: string) => Promise<void>;
-  updateProfile: (profileData: { name?: string; phone?: string; address?: string }) => Promise<void>;
-  changePassword: (currentPassword: string, password: string, password_confirmation: string) => Promise<void>;
+  logout: () => void;
+  hasRole: (role: string) => boolean;
+  hasPermission: (permission: string) => boolean;
 }
 
-// Create auth context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Auth provider props
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
+};
+
 interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Auth provider component
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(
+    JSON.parse(localStorage.getItem("user") || "null")
+  );
+  const [token, setToken] = useState<string | null>(
+    localStorage.getItem("token")
+  );
+  const [role, setRole] = useState<string | null>(
+    localStorage.getItem("role")
+  );
+  const [permissions, setPermissions] = useState<string[]>(
+    JSON.parse(localStorage.getItem("permissions") || "[]")
+  );
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check if user is authenticated
-  const isAuthenticated = !!token && !!user;
-
-  // Initialize auth state from localStorage
+  // Restore session on mount
   useEffect(() => {
-    const storedToken = localStorage.getItem('auth_token');
-    const storedUser = localStorage.getItem('user');
-
-    if (storedToken && storedUser) {
-      try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error('Error parsing stored user data:', error);
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('user');
-      }
+    if (token && !user) {
+      fetchUser();
+    } else {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   }, []);
 
-  // Login function
-  const login = async (email: string, password: string) => {
+  const fetchUser = async () => {
     try {
-      const response = await authAPI.login(email, password);
-      
-      if (response.success) {
-        const { user: userData, token: authToken } = response.data;
-        
-        setUser(userData);
-        setToken(authToken);
-        
-        localStorage.setItem('auth_token', authToken);
-        localStorage.setItem('user', JSON.stringify(userData));
-      } else {
-        throw new Error(response.message || 'Login failed');
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
-    }
-  };
+      console.log("Fetching user with token:", token?.substring(0, 20) + "...");
+      const response = await api.get("/user", token || undefined);
+      console.log("API Response:", response);
 
-  // Register function
-  const register = async (userData: {
-    name: string;
-    email: string;
-    password: string;
-    password_confirmation: string;
-    phone?: string;
-    address?: string;
-  }) => {
-    try {
-      const response = await authAPI.register(userData);
-      
-      if (response.success) {
-        const { user: newUser, token: authToken } = response.data;
-        
-        setUser(newUser);
-        setToken(authToken);
-        
-        localStorage.setItem('auth_token', authToken);
-        localStorage.setItem('user', JSON.stringify(newUser));
-      } else {
-        throw new Error(response.message || 'Registration failed');
-      }
-    } catch (error) {
-      console.error('Registration error:', error);
-      throw error;
-    }
-  };
+      const userData = response.data?.user || response.data || null;
+      const userRole = response.data?.role || role || null;
+      const userPermissions = response.data?.permissions || permissions || [];
 
-  // Logout function
-  const logout = async () => {
-    try {
-      if (token) {
-        await authAPI.logout();
+      if (!userData) {
+        throw new Error("User data not found in /user response");
       }
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
+
+      setUser(userData);
+      setRole(userRole);
+      setPermissions(userPermissions);
+
+      // persist
+      localStorage.setItem("user", JSON.stringify(userData));
+      localStorage.setItem("role", userRole || "");
+      localStorage.setItem("permissions", JSON.stringify(userPermissions));
+
+      console.log("User state restored successfully");
+    } catch (error: any) {
+      console.error("Error fetching user:", error);
+      localStorage.clear();
       setUser(null);
       setToken(null);
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user');
+      setRole(null);
+      setPermissions([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Forgot password function
-  const forgotPassword = async (email: string) => {
+  const login = async (email: string, password: string) => {
     try {
-      const response = await authAPI.forgotPassword(email);
-      
-      if (!response.success) {
-        throw new Error(response.message || 'Failed to send OTP');
+      console.log("Attempting login for:", email);
+
+      const response = await api.post("/auth/login", { email, password });
+      console.log("Full login response:", response.data);
+
+      const loginData = response.data?.data || response.data || {};
+
+      const userData = loginData.user || null;
+      const userToken = loginData.token || null;
+      const userRole = loginData.role || null;
+      const userPermissions = loginData.permissions || [];
+
+      if (!userData || !userToken) {
+        throw new Error("Login response missing user or token");
       }
+
+      setUser(userData);
+      setToken(userToken);
+      setRole(userRole);
+      setPermissions(userPermissions);
+
+      // ✅ persist
+      localStorage.setItem("user", JSON.stringify(userData));
+      localStorage.setItem("token", userToken);
+      localStorage.setItem("role", userRole || "");
+      localStorage.setItem("permissions", JSON.stringify(userPermissions));
+
+      console.log("Login successful, user state updated");
     } catch (error) {
-      console.error('Forgot password error:', error);
+      console.error("Login error:", error);
       throw error;
     }
   };
 
-  // Verify OTP function
-  const verifyOtp = async (email: string, otp: string) => {
-    try {
-      const response = await authAPI.verifyOtp(email, otp);
-      
-      if (!response.success) {
-        throw new Error(response.message || 'OTP verification failed');
-      }
-    } catch (error) {
-      console.error('OTP verification error:', error);
-      throw error;
+  const logout = () => {
+    console.log("Logging out user");
+
+    if (token) {
+      api.post("/auth/logout", {}, token).catch(console.error);
     }
+
+    localStorage.clear();
+    setUser(null);
+    setToken(null);
+    setRole(null);
+    setPermissions([]);
+
+    console.log("Logout completed");
   };
 
-  // Reset password function
-  const resetPassword = async (email: string, otp: string, password: string, password_confirmation: string) => {
-    try {
-      const response = await authAPI.resetPassword(email, otp, password, password_confirmation);
-      
-      if (!response.success) {
-        throw new Error(response.message || 'Password reset failed');
-      }
-    } catch (error) {
-      console.error('Password reset error:', error);
-      throw error;
-    }
+  const hasRole = (roleName: string): boolean => {
+    return role === roleName;
   };
 
-  // Update profile function
-  const updateProfile = async (profileData: { name?: string; phone?: string; address?: string }) => {
-    try {
-      const response = await authAPI.updateProfile(profileData);
-      
-      if (response.success) {
-        const updatedUser = response.data;
-        setUser(updatedUser);
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-      } else {
-        throw new Error(response.message || 'Profile update failed');
-      }
-    } catch (error) {
-      console.error('Profile update error:', error);
-      throw error;
-    }
+  const hasPermission = (permissionName: string): boolean => {
+    return permissions.includes(permissionName);
   };
 
-  // Change password function
-  const changePassword = async (currentPassword: string, password: string, password_confirmation: string) => {
-    try {
-      const response = await authAPI.changePassword(currentPassword, password, password_confirmation);
-      
-      if (!response.success) {
-        throw new Error(response.message || 'Password change failed');
-      }
-    } catch (error) {
-      console.error('Password change error:', error);
-      throw error;
-    }
-  };
-
-  // Context value
   const value: AuthContextType = {
     user,
     token,
-    isAuthenticated,
+    role,
+    permissions,
+    isAuthenticated: !!token && !!user,
     isLoading,
     login,
-    register,
     logout,
-    forgotPassword,
-    verifyOtp,
-    resetPassword,
-    updateProfile,
-    changePassword,
+    hasRole,
+    hasPermission,
   };
 
   return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
   );
 };
-
-// Custom hook to use auth context
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  
-  return context;
-};
-

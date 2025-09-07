@@ -22,7 +22,6 @@ class User extends Authenticatable
         'password',
         'phone',
         'address',
-        'role',
         'is_active',
     ];
 
@@ -96,5 +95,29 @@ class User extends Authenticatable
     public function hasAnyRole($roles)
     {
         return $this->roles()->whereIn('name', (array) $roles)->exists();
+    }
+
+    /**
+     * Get the user's primary role (first role)
+     */
+    public function getPrimaryRole()
+    {
+        return $this->roles()->first();
+    }
+
+    /**
+     * Check if user is admin
+     */
+    public function isAdmin()
+    {
+        return $this->hasRole('admin');
+    }
+
+    /**
+     * Check if user is cashier
+     */
+    public function isCashier()
+    {
+        return $this->hasRole('cashier');
     }
 }

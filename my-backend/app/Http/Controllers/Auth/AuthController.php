@@ -18,16 +18,31 @@ class AuthController extends BaseApiController
      */
     public function login(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        // Debug: Log the raw request
+        \Log::info('Raw request content: ' . $request->getContent());
+        \Log::info('Request all: ' . json_encode($request->all()));
+        
+        // Try to get data from raw JSON if request->all() is empty
+        $data = $request->all();
+        if (empty($data)) {
+            $rawData = json_decode($request->getContent(), true);
+            if ($rawData) {
+                $data = $rawData;
+                \Log::info('Using raw JSON data: ' . json_encode($data));
+            }
+        }
+        
+        $validator = Validator::make($data, [
             'email' => 'required|email',
             'password' => 'required|string',
         ]);
 
         if ($validator->fails()) {
+            \Log::info('Validation failed: ' . json_encode($validator->errors()));
             return $this->validationErrorResponse($validator->errors());
         }
 
-        if (!Auth::attempt($request->only('email', 'password'))) {
+        if (!Auth::attempt(['email' => $data['email'], 'password' => $data['password']])) {
             return $this->errorResponse('Invalid credentials', 401);
         }
 
@@ -43,6 +58,8 @@ class AuthController extends BaseApiController
         return $this->successResponse([
             'user' => $user->load('roles'),
             'token' => $token,
+            'role' => $user->getPrimaryRole()->name,
+            'permissions' => $this->getUserPermissions($user),
         ], 'Login successful');
     }
 
@@ -79,6 +96,20 @@ class AuthController extends BaseApiController
             'user' => $user,
             'token' => $token,
         ], 'Registration successful', 201);
+    }
+
+    /**
+     * Get user permissions based on their roles
+     */
+    private function getUserPermissions($user)
+    {
+        $permissions = [];
+        foreach ($user->roles as $role) {
+            foreach ($role->permissions as $permission) {
+                $permissions[] = $permission->name;
+            }
+        }
+        return array_unique($permissions);
     }
 
     /**

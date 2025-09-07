@@ -8,7 +8,6 @@ use App\Http\Controllers\Product\CategoryController;
 use App\Http\Controllers\Product\BrandController;
 use App\Http\Controllers\Product\UnitController;
 use App\Http\Controllers\Customer\CustomerController;
-use App\Http\Controllers\Supplier\SupplierController;
 use App\Http\Controllers\Order\OrderController;
 use App\Http\Controllers\Order\PosCartController;
 use App\Http\Controllers\Dashboard\DashboardController;
@@ -42,61 +41,85 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::put('/auth/change-password', [AuthController::class, 'changePassword']);
 
-    // Dashboard
-    Route::get('/dashboard', [DashboardController::class, 'index']);
-    Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
-    Route::get('/dashboard/recent-orders', [DashboardController::class, 'recentOrders']);
-    Route::get('/dashboard/low-stock-products', [DashboardController::class, 'lowStockProducts']);
+    // Dashboard - accessible by both admin and cashier
+    Route::middleware('role:admin,cashier')->group(function () {
+        Route::get('/dashboard', [DashboardController::class, 'index']);
+        Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
+        Route::get('/dashboard/recent-orders', [DashboardController::class, 'recentOrders']);
+        Route::get('/dashboard/low-stock-products', [DashboardController::class, 'lowStockProducts']);
+    });
 
-    // Categories
-    Route::apiResource('categories', CategoryController::class);
-    Route::get('/categories/active', [CategoryController::class, 'active']);
+    // Categories - admin and cashier can view, admin can manage
+    Route::middleware('role:admin,cashier')->group(function () {
+        Route::get('/categories', [CategoryController::class, 'index']);
+        Route::get('/categories/active', [CategoryController::class, 'active']);
+    });
+    
+    // Admin-only category management
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/categories', [CategoryController::class, 'store']);
+        Route::put('/categories/{category}', [CategoryController::class, 'update']);
+        Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
+    });
 
-    // Brands
-    Route::apiResource('brands', BrandController::class);
-    Route::get('/brands/active', [BrandController::class, 'active']);
 
-    // Units
-    Route::apiResource('units', UnitController::class);
-    Route::get('/units/active', [UnitController::class, 'active']);
-
-    // Products - put specific routes BEFORE resource
+    // Products - admin can manage, cashier can view
     Route::get('/products/search', [ProductController::class, 'search']);
     Route::get('/products/low-stock', [ProductController::class, 'lowStock']);
-    Route::post('/products/import', [ProductController::class, 'import']);
-    Route::put('/products/{product}/stock', [ProductController::class, 'updateStock']);
-    Route::apiResource('products', ProductController::class);
+    
+    // Admin-only product management
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/products/import', [ProductController::class, 'import']);
+        Route::put('/products/{product}/stock', [ProductController::class, 'updateStock']);
+        Route::apiResource('products', ProductController::class);
+    });
+    
+    // Admin and Cashier can view products
+    Route::middleware('role:admin,cashier')->group(function () {
+        Route::get('/products', [ProductController::class, 'index']);
+        Route::get('/products/{product}', [ProductController::class, 'show']);
+    });
 
     // Orders
     Route::post('/orders', [OrderController::class, 'store']);
 
-    // Customers
-    Route::apiResource('customers', CustomerController::class);
+    // Customers - admin can manage, cashier can view
     Route::get('/customers/search', [CustomerController::class, 'search']);
-    Route::get('/customers/{customer}/orders', [CustomerController::class, 'orders']);
+    
+    Route::middleware('role:admin')->group(function () {
+        Route::apiResource('customers', CustomerController::class);
+        Route::get('/customers/{customer}/orders', [CustomerController::class, 'orders']);
+    });
+    
+    Route::middleware('role:cashier')->group(function () {
+        Route::get('/customers', [CustomerController::class, 'index']);
+        Route::get('/customers/{customer}', [CustomerController::class, 'show']);
+    });
+   
+    // POS Cart - accessible by both admin and cashier
+    Route::middleware('role:admin,cashier')->group(function () {
+        Route::get('/pos/cart', [PosCartController::class, 'index']);
+        Route::post('/pos/cart', [PosCartController::class, 'store']);
+        Route::put('/pos/cart/{cart}/increment', [PosCartController::class, 'increment']);
+        Route::put('/pos/cart/{cart}/decrement', [PosCartController::class, 'decrement']);
+        Route::delete('/pos/cart/{cart}', [PosCartController::class, 'destroy']);
+        Route::delete('/pos/cart', [PosCartController::class, 'clear']);
+    });
 
-    // Suppliers
-    Route::apiResource('suppliers', SupplierController::class);
-    Route::get('/suppliers/search', [SupplierController::class, 'search']);
+    // Orders - accessible by both admin and cashier
+    Route::middleware('role:admin,cashier')->group(function () {
+        Route::apiResource('orders', OrderController::class);
+        Route::get('/orders/search', [OrderController::class, 'search']);
+        Route::put('/orders/{order}/status', [OrderController::class, 'updateStatus']);
+        Route::put('/orders/{order}/payment', [OrderController::class, 'updatePayment']);
+        Route::get('/orders/{order}/invoice', [OrderController::class, 'invoice']);
+        Route::get('/orders/{order}/pos-invoice', [OrderController::class, 'posInvoice']);
+    });
 
-    // POS Cart
-    Route::get('/pos/cart', [PosCartController::class, 'index']);
-    Route::post('/pos/cart', [PosCartController::class, 'store']);
-    Route::put('/pos/cart/{cart}/increment', [PosCartController::class, 'increment']);
-    Route::put('/pos/cart/{cart}/decrement', [PosCartController::class, 'decrement']);
-    Route::delete('/pos/cart/{cart}', [PosCartController::class, 'destroy']);
-    Route::delete('/pos/cart', [PosCartController::class, 'clear']);
-
-    // Orders
-    Route::apiResource('orders', OrderController::class);
-    Route::get('/orders/search', [OrderController::class, 'search']);
-    Route::put('/orders/{order}/status', [OrderController::class, 'updateStatus']);
-    Route::put('/orders/{order}/payment', [OrderController::class, 'updatePayment']);
-    Route::get('/orders/{order}/invoice', [OrderController::class, 'invoice']);
-    Route::get('/orders/{order}/pos-invoice', [OrderController::class, 'posInvoice']);
-
-    // Reports
-    Route::get('/reports/sales-summary', [DashboardController::class, 'salesSummary']);
-    Route::get('/reports/sales-report', [DashboardController::class, 'salesReport']);
-    Route::get('/reports/inventory-report', [DashboardController::class, 'inventoryReport']);
+    // Reports - accessible by both admin and cashier
+    Route::middleware('role:admin,cashier')->group(function () {
+        Route::get('/reports/sales-summary', [DashboardController::class, 'salesSummary']);
+        Route::get('/reports/sales-report', [DashboardController::class, 'salesReport']);
+        Route::get('/reports/inventory-report', [DashboardController::class, 'inventoryReport']);
+    });
 });
