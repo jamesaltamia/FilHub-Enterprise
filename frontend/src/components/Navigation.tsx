@@ -1,17 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 interface NavigationItem {
   name: string;
-  path: string;
+  path?: string;   // parent menus won’t always have a path
   icon: string;
   roles: string[];
+  children?: NavigationItem[]; // allow submenus
 }
 
 const Navigation: React.FC = () => {
   const { user, role, logout } = useAuth();
   const location = useLocation();
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   const navigationItems: NavigationItem[] = [
     {
@@ -22,39 +24,25 @@ const Navigation: React.FC = () => {
     },
     {
       name: 'Inventory',
-      path: '/inventory',
       icon: '📦',
-      roles: ['admin', 'cashier']
+      roles: ['admin', 'cashier'],
+      children: [
+        { name: 'Products', path: '/products', icon: '🏷️', roles: ['admin'] },
+        { name: 'Categories', path: '/categories', icon: '📁', roles: ['admin'] },
+        { name: 'Orders', path: '/orders', icon: '📋', roles: ['admin', 'cashier'] }
+      ]
     },
     {
-      name: 'POS',
+      name: 'Sales',
       path: '/pos',
       icon: '🛒',
       roles: ['admin', 'cashier']
     },
     {
-      name: 'Products',
-      path: '/products',
-      icon: '🏷️',
-      roles: ['admin']
-    },
-    {
-      name: 'Categories',
-      path: '/categories',
-      icon: '📁',
-      roles: ['admin']
-    },
-    {
       name: 'Customers',
       path: '/customers',
       icon: '👥',
-      roles: ['admin', 'cashier']
-    },
-    {
-      name: 'Orders',
-      path: '/orders',
-      icon: '📋',
-      roles: ['admin', 'cashier']
+      roles: ['admin']
     },
     {
       name: 'Reports',
@@ -76,7 +64,7 @@ const Navigation: React.FC = () => {
     }
   ];
 
-  const filteredNavigation = navigationItems.filter(item => 
+  const filteredNavigation = navigationItems.filter(item =>
     role ? item.roles.includes(role) : false
   );
 
@@ -111,11 +99,59 @@ const Navigation: React.FC = () => {
         {/* Navigation Menu */}
         <div className="space-y-2">
           {filteredNavigation.map((item) => {
-            const isActive = location.pathname === item.path;
+            const isActive = item.path && location.pathname === item.path;
+
+            // If item has children (collapsible)
+            if (item.children) {
+              const isOpen = openMenu === item.name;
+              return (
+                <div key={item.name}>
+                  <button
+                    onClick={() => setOpenMenu(isOpen ? null : item.name)}
+                    className={`flex items-center w-full px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                      isOpen
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <span className="mr-3 text-lg">{item.icon}</span>
+                    {item.name}
+                    <span className="ml-auto">{isOpen ? '▲' : '▼'}</span>
+                  </button>
+
+                  {/* Submenu */}
+                  {isOpen && (
+                    <div className="ml-6 mt-1 space-y-1">
+                      {item.children
+                        .filter((child) => role && child.roles.includes(role))
+                        .map((child) => {
+                          const isChildActive = location.pathname === child.path;
+                          return (
+                            <Link
+                              key={child.path}
+                              to={child.path!}
+                              className={`flex items-center px-3 py-2 text-sm rounded-md transition-colors ${
+                                isChildActive
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                              }`}
+                            >
+                              <span className="mr-2">{child.icon}</span>
+                              {child.name}
+                            </Link>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            // Normal item
             return (
               <Link
                 key={item.path}
-                to={item.path}
+                to={item.path!}
                 className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                   isActive
                     ? 'bg-blue-100 text-blue-700 border-r-2 border-blue-500'
