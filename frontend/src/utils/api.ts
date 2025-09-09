@@ -8,7 +8,8 @@ export const api = {
     const config: RequestInit = {
       ...options,
       headers: {
-        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        // Don't set Content-Type for FormData - let browser handle it
+        ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
         ...options.headers,
       },
     };
@@ -49,13 +50,22 @@ export const api = {
     return this.request(endpoint, { method: 'GET', headers });
   },
 
-  async post(endpoint: string, data: any, token?: string) {
+  async post(endpoint: string, data: any, token?: string, customHeaders?: Record<string, string>) {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
+    
+    // Handle FormData for file uploads
+    const isFormData = data instanceof FormData;
+    
     return this.request(endpoint, {
       method: 'POST',
-      body: JSON.stringify(data),
-      headers,
+      body: isFormData ? data : JSON.stringify(data),
+      headers: {
+        ...headers,
+        ...(customHeaders || {}),
+        // Don't set Content-Type for FormData, let browser set it with boundary
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' })
+      },
     });
   },
 

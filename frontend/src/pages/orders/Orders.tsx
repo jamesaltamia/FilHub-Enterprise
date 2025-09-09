@@ -10,7 +10,7 @@ const Orders: React.FC = () => {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await ordersAPI.list({ per_page: 20 });
+      const res = await ordersAPI.getAll({ per_page: 20 });
       if (res.success) setOrders((res.data.data || res.data) as any[]);
       else setError(res.message || 'Failed to load orders');
     } catch (e: any) {

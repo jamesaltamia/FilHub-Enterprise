@@ -32,6 +32,7 @@ class ProductController extends BaseApiController
                 'min_stock_level' => $product->low_stock_alert,
                 'category_id' => $product->category_id,
                 'category' => $product->category,
+                'image' => $product->image,
                 'is_active' => $product->is_active,
                 'created_at' => $product->created_at,
                 'updated_at' => $product->updated_at,
@@ -75,6 +76,7 @@ class ProductController extends BaseApiController
             'min_stock_level' => $product->low_stock_alert,
             'category_id' => $product->category_id,
             'category' => $product->category,
+            'image' => $product->image,
             'is_active' => $product->is_active,
             'created_at' => $product->created_at,
             'updated_at' => $product->updated_at,
@@ -101,11 +103,12 @@ class ProductController extends BaseApiController
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'sku' => 'required|string|unique:products,sku',
-            'category_id' => 'nullable|exists:categories,id',
+            'category_id' => 'nullable|integer|exists:categories,id',
             'price' => 'required|numeric|min:0',
             'cost' => 'required|numeric|min:0',
             'min_stock_level' => 'required|integer|min:0',
             'stock_quantity' => 'required|integer|min:0',
+            'image' => 'nullable|string|url',
             'is_active' => 'boolean',
         ]);
 
@@ -123,6 +126,7 @@ class ProductController extends BaseApiController
             'cost_price' => $data['cost'],
             'low_stock_alert' => $data['min_stock_level'],
             'stock_quantity' => $data['stock_quantity'],
+            'image' => $data['image'] ?? null,
             'is_active' => $data['is_active'] ?? true,
         ];
 
@@ -140,6 +144,7 @@ class ProductController extends BaseApiController
             'min_stock_level' => $product->low_stock_alert,
             'category_id' => $product->category_id,
             'category' => $product->category,
+            'image' => $product->image,
             'is_active' => $product->is_active,
             'created_at' => $product->created_at,
             'updated_at' => $product->updated_at,
@@ -161,11 +166,12 @@ class ProductController extends BaseApiController
             'name' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
             'sku' => 'sometimes|required|string|unique:products,sku,' . $product->id,
-            'category_id' => 'nullable|exists:categories,id',
+            'category_id' => 'nullable|integer',
             'price' => 'sometimes|required|numeric|min:0',
             'cost' => 'sometimes|required|numeric|min:0',
             'min_stock_level' => 'sometimes|required|integer|min:0',
             'stock_quantity' => 'sometimes|required|integer|min:0',
+            'image' => 'nullable|string',
             'is_active' => 'boolean',
         ]);
 
@@ -182,6 +188,7 @@ class ProductController extends BaseApiController
         if (isset($data['cost'])) $updateData['cost_price'] = $data['cost'];
         if (isset($data['min_stock_level'])) $updateData['low_stock_alert'] = $data['min_stock_level'];
         if (isset($data['stock_quantity'])) $updateData['stock_quantity'] = $data['stock_quantity'];
+        if (isset($data['image'])) $updateData['image'] = $data['image'];
         if (isset($data['is_active'])) $updateData['is_active'] = $data['is_active'];
 
         $product->update($updateData);
@@ -198,6 +205,7 @@ class ProductController extends BaseApiController
             'min_stock_level' => $product->low_stock_alert,
             'category_id' => $product->category_id,
             'category' => $product->category,
+            'image' => $product->image,
             'is_active' => $product->is_active,
             'created_at' => $product->created_at,
             'updated_at' => $product->updated_at,
@@ -206,8 +214,23 @@ class ProductController extends BaseApiController
 
     public function destroy(Product $product)
     {
-        if ($product->image) Storage::disk('public')->delete($product->image);
-        $product->delete();
-        return $this->successResponse(null, 'Product deleted');
+        try {
+            // Check if product exists in any orders or other related tables
+            $hasOrders = $product->orderProducts()->exists();
+            
+            if ($hasOrders) {
+                // If product has orders, just mark as inactive instead of deleting
+                $product->update(['is_active' => false]);
+                return $this->successResponse(null, 'Product deactivated successfully (has order history)');
+            }
+            
+            // Delete the product if no orders exist
+            $product->delete();
+            
+            return $this->successResponse(null, 'Product deleted successfully');
+        } catch (\Exception $e) {
+            \Log::error('Error deleting product: ' . $e->getMessage());
+            return $this->errorResponse('Failed to delete product', 500);
+        }
     }
 }

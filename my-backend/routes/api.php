@@ -30,6 +30,15 @@ Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
 Route::post('/auth/verify-otp', [AuthController::class, 'verifyOtp']);
 
+// Serve uploaded images
+Route::get('/storage/images/{filename}', function ($filename) {
+    $path = storage_path('app/public/images/' . $filename);
+    if (!file_exists($path)) {
+        abort(404);
+    }
+    return response()->file($path);
+});
+
 // Protected routes (authentication required)
 Route::middleware('auth:sanctum')->group(function () {
     
@@ -67,17 +76,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/products/search', [ProductController::class, 'search']);
     Route::get('/products/low-stock', [ProductController::class, 'lowStock']);
     
-    // Admin-only product management
+    // Admin and Cashier can manage products
+    Route::middleware(['auth:sanctum', 'role:admin,cashier'])->group(function () {
+        Route::get('/products', [ProductController::class, 'index']);
+        Route::post('/products', [ProductController::class, 'store']);
+        Route::get('/products/{product}', [ProductController::class, 'show']);
+        Route::put('/products/{product}', [ProductController::class, 'update']);
+        Route::delete('/products/{product}', [ProductController::class, 'destroy']);
+        
+        // Image upload route
+        Route::post('/upload-image', [\App\Http\Controllers\ImageUploadController::class, 'upload']);
+    });
+    
+    // Admin-only advanced product management
     Route::middleware('role:admin')->group(function () {
         Route::post('/products/import', [ProductController::class, 'import']);
         Route::put('/products/{product}/stock', [ProductController::class, 'updateStock']);
-        Route::apiResource('products', ProductController::class);
-    });
-    
-    // Admin and Cashier can view products
-    Route::middleware('role:admin,cashier')->group(function () {
-        Route::get('/products', [ProductController::class, 'index']);
-        Route::get('/products/{product}', [ProductController::class, 'show']);
     });
 
     // Orders

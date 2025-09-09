@@ -251,16 +251,72 @@ export const unitsAPI = {
 };
 
 export const ordersAPI = {
-  create: async (payload: { customer_id?: number; items: { product_id: number; qty: number; price: number }[]; paid_amount: number }) => {
-    const response = await api.post<ApiResponse>('/orders', payload);
+  getAll: async (params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    payment_status?: 'pending' | 'partial' | 'paid';
+    order_status?: 'pending' | 'processing' | 'completed' | 'cancelled';
+    date_from?: string;
+    date_to?: string;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+  }) => {
+    const response = await api.get<ApiResponse<PaginatedResponse>>('/orders', { params });
     return response.data;
   },
-  list: async (params?: { page?: number; per_page?: number; search?: string }) => {
-    const response = await api.get<ApiResponse>('/orders', { params });
-    return response.data;
-  },
+
   getById: async (id: number) => {
     const response = await api.get<ApiResponse>(`/orders/${id}`);
+    return response.data;
+  },
+
+  create: async (orderData: {
+    customer_id?: number;
+    items: { product_id: number; qty: number; price: number }[];
+    paid_amount: number;
+    discount_amount?: number;
+    tax_amount?: number;
+    notes?: string;
+    order_status?: 'pending' | 'processing' | 'completed' | 'cancelled';
+  }) => {
+    const response = await api.post<ApiResponse>('/orders', orderData);
+    return response.data;
+  },
+
+  update: async (id: number, orderData: {
+    order_status: 'pending' | 'processing' | 'completed' | 'cancelled';
+    payment_status?: 'pending' | 'partial' | 'paid';
+    paid_amount?: number;
+    notes?: string;
+  }) => {
+    const response = await api.put<ApiResponse>(`/orders/${id}`, orderData);
+    return response.data;
+  },
+
+  delete: async (id: number) => {
+    const response = await api.delete<ApiResponse>(`/orders/${id}`);
+    return response.data;
+  },
+
+  updateStatus: async (id: number, status: 'pending' | 'processing' | 'completed' | 'cancelled') => {
+    const response = await api.put<ApiResponse>(`/orders/${id}/status`, { status });
+    return response.data;
+  },
+
+  updatePayment: async (id: number, paidAmount: number) => {
+    const response = await api.put<ApiResponse>(`/orders/${id}/payment`, { paid_amount: paidAmount });
+    return response.data;
+  },
+
+  getStats: async () => {
+    const response = await api.get<ApiResponse>('/orders/stats');
+    return response.data;
+  },
+
+  // Legacy methods for backward compatibility
+  list: async (params?: { page?: number; per_page?: number; search?: string }) => {
+    const response = await api.get<ApiResponse>('/orders', { params });
     return response.data;
   },
 };

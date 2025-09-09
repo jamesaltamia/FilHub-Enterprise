@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import type { ReactNode } from "react";
-import { api } from "../utils/api";
+import { authAPI } from "../services/api";
 
 interface User {
   id: number;
@@ -48,7 +48,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     JSON.parse(localStorage.getItem("user") || "null")
   );
   const [token, setToken] = useState<string | null>(
-    localStorage.getItem("token")
+    localStorage.getItem("token") || localStorage.getItem("auth_token")
   );
   const [role, setRole] = useState<string | null>(
     localStorage.getItem("role")
@@ -61,7 +61,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Restore session on mount
   useEffect(() => {
     if (token && !user) {
-      fetchUser();
+      // Only fetch user if we have both token and no user data
+      // Add a delay to prevent immediate API calls
+      const timer = setTimeout(() => {
+        fetchUser();
+      }, 500);
+      return () => clearTimeout(timer);
     } else {
       setIsLoading(false);
     }
@@ -69,35 +74,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const fetchUser = async () => {
     try {
-      console.log("Fetching user with token:", token?.substring(0, 20) + "...");
-      const response = await api.get("/user", token || undefined);
-      console.log("API Response:", response);
+      console.log("Fetching user profile...");
+      // Use the profile endpoint from authAPI
+      const response = await authAPI.updateProfile({});
+      console.log("Profile response:", response);
 
-      const userData = response.data?.user || response.data || null;
-      const userRole = response.data?.role || role || null;
-      const userPermissions = response.data?.permissions || permissions || [];
-
-      if (!userData) {
-        throw new Error("User data not found in /user response");
+      if (response.success && response.data) {
+        const userData = response.data;
+        setUser(userData);
+        localStorage.setItem("user", JSON.stringify(userData));
+        console.log("User profile updated successfully");
+      } else {
+        // If profile fetch fails, keep existing user data but don't logout
+        console.log("Profile fetch failed, keeping existing session");
       }
-
-      setUser(userData);
-      setRole(userRole);
-      setPermissions(userPermissions);
-
-      // persist
-      localStorage.setItem("user", JSON.stringify(userData));
-      localStorage.setItem("role", userRole || "");
-      localStorage.setItem("permissions", JSON.stringify(userPermissions));
-
-      console.log("User state restored successfully");
     } catch (error: any) {
-      console.error("Error fetching user:", error);
-      localStorage.clear();
-      setUser(null);
-      setToken(null);
-      setRole(null);
-      setPermissions([]);
+      console.error("Error fetching user profile:", error);
+      // Don't clear session on profile fetch failure
+      // Only logout if it's a real auth issue
+      if (error?.response?.status === 401) {
+        localStorage.clear();
+        setUser(null);
+        setToken(null);
+        setRole(null);
+        setPermissions([]);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -107,32 +108,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log("Attempting login for:", email);
 
-      const response = await api.post("/auth/login", { email, password });
-      console.log("Full login response:", response.data);
+      const response = await authAPI.login(email, password);
+      console.log("Login response:", response);
 
-      const loginData = response.data?.data || response.data || {};
+      if (response.success && response.data) {
+        const loginData = response.data;
+        const userData = loginData.user || loginData;
+        const userToken = loginData.token || loginData.access_token;
+        const userRole = loginData.role || "user";
+        const userPermissions = loginData.permissions || [];
 
-      const userData = loginData.user || null;
-      const userToken = loginData.token || null;
-      const userRole = loginData.role || null;
-      const userPermissions = loginData.permissions || [];
+        if (!userData || !userToken) {
+          throw new Error("Login response missing user or token");
+        }
 
-      if (!userData || !userToken) {
-        throw new Error("Login response missing user or token");
+        setUser(userData);
+        setToken(userToken);
+        setRole(userRole);
+        setPermissions(userPermissions);
+
+        // Store in localStorage with correct key names
+        localStorage.setItem("user", JSON.stringify(userData));
+        localStorage.setItem("token", userToken);
+        localStorage.setItem("auth_token", userToken); // Also store with auth_token key for API
+        localStorage.setItem("role", userRole || "");
+        localStorage.setItem("permissions", JSON.stringify(userPermissions));
+
+        console.log("Login successful, user state updated");
+      } else {
+        throw new Error(response.message || "Login failed");
       }
-
-      setUser(userData);
-      setToken(userToken);
-      setRole(userRole);
-      setPermissions(userPermissions);
-
-      // ✅ persist
-      localStorage.setItem("user", JSON.stringify(userData));
-      localStorage.setItem("token", userToken);
-      localStorage.setItem("role", userRole || "");
-      localStorage.setItem("permissions", JSON.stringify(userPermissions));
-
-      console.log("Login successful, user state updated");
     } catch (error) {
       console.error("Login error:", error);
       throw error;
@@ -143,7 +148,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     console.log("Logging out user");
 
     if (token) {
-      api.post("/auth/logout", {}, token).catch(console.error);
+      authAPI.logout().catch(console.error);
     }
 
     localStorage.clear();
