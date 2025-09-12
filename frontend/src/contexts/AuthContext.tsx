@@ -25,6 +25,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (userData: Partial<User>) => void;
   hasRole: (role: string) => boolean;
   hasPermission: (permission: string) => boolean;
 }
@@ -164,6 +165,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return role === roleName;
   };
 
+  const updateUser = (userData: Partial<User>) => {
+    console.log('updateUser called with:', userData);
+    console.log('Current user:', user);
+    if (user) {
+      const updatedUser = { ...user, ...userData };
+      console.log('Updated user:', updatedUser);
+      setUser(updatedUser);
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      console.log('User state and localStorage updated');
+    } else {
+      console.log('No user found, cannot update');
+    }
+  };
+
   const hasPermission = (permissionName: string): boolean => {
     return permissions.includes(permissionName);
   };
@@ -177,6 +192,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     login,
     logout,
+    updateUser,
     hasRole,
     hasPermission,
   };

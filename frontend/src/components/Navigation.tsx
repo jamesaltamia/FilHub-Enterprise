@@ -10,8 +10,12 @@ interface NavigationItem {
   children?: NavigationItem[]; // allow submenus
 }
 
-const Navigation: React.FC = () => {
-  const { user, role, logout } = useAuth();
+interface NavigationProps {
+  isOpen: boolean;
+}
+
+const Navigation: React.FC<NavigationProps> = ({ isOpen }) => {
+  const { user, role } = useAuth();
   const location = useLocation();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
@@ -27,7 +31,6 @@ const Navigation: React.FC = () => {
       icon: '📦',
       roles: ['admin', 'cashier'],
       children: [
-        { name: 'Products', path: '/products', icon: '🏷️', roles: ['admin'] },
         { name: 'Categories', path: '/categories', icon: '📁', roles: ['admin'] },
         { name: 'Orders', path: '/orders', icon: '📋', roles: ['admin', 'cashier'] }
       ]
@@ -68,33 +71,15 @@ const Navigation: React.FC = () => {
     role ? item.roles.includes(role) : false
   );
 
-  const handleLogout = () => {
-    logout();
-  };
 
   if (!user) return null;
 
   return (
-    <nav className="bg-white shadow-lg border-r border-gray-200 w-64 min-h-screen">
+    <nav className={`bg-blue-900 shadow-lg border-r border-blue-800 w-64 min-h-screen transition-transform duration-300 ${
+      isOpen ? 'translate-x-0' : '-translate-x-full'
+    } fixed z-40`}>
       <div className="px-6 py-4">
-        {/* Logo and Brand */}
-        <div className="flex items-center mb-8">
-          <div className="text-2xl font-bold text-blue-600">FilHub</div>
-          <div className="ml-2 text-sm text-gray-500">Enterprise</div>
-        </div>
 
-        {/* User Info */}
-        <div className="mb-6 p-3 bg-gray-50 rounded-lg">
-          <div className="flex items-center">
-            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
-              {user.name.charAt(0).toUpperCase()}
-            </div>
-            <div className="ml-3">
-              <div className="text-sm font-medium text-gray-900">{user.name}</div>
-              <div className="text-xs text-gray-500 capitalize">{role || 'Loading...'}</div>
-            </div>
-          </div>
-        </div>
 
         {/* Navigation Menu */}
         <div className="space-y-2">
@@ -110,8 +95,8 @@ const Navigation: React.FC = () => {
                     onClick={() => setOpenMenu(isOpen ? null : item.name)}
                     className={`flex items-center w-full px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                       isOpen
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        ? 'bg-yellow-500 text-blue-900'
+                        : 'text-gray-200 hover:bg-blue-800 hover:text-white'
                     }`}
                   >
                     <span className="mr-3 text-lg">{item.icon}</span>
@@ -132,8 +117,8 @@ const Navigation: React.FC = () => {
                               to={child.path!}
                               className={`flex items-center px-3 py-2 text-sm rounded-md transition-colors ${
                                 isChildActive
-                                  ? 'bg-blue-100 text-blue-700'
-                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                  ? 'bg-yellow-500 text-blue-900'
+                                  : 'text-gray-200 hover:bg-blue-800 hover:text-white'
                               }`}
                             >
                               <span className="mr-2">{child.icon}</span>
@@ -154,8 +139,8 @@ const Navigation: React.FC = () => {
                 to={item.path!}
                 className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                   isActive
-                    ? 'bg-blue-100 text-blue-700 border-r-2 border-blue-500'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-yellow-500 text-blue-900 border-r-2 border-yellow-400'
+                    : 'text-gray-200 hover:bg-blue-800 hover:text-white'
                 }`}
               >
                 <span className="mr-3 text-lg">{item.icon}</span>
@@ -165,16 +150,6 @@ const Navigation: React.FC = () => {
           })}
         </div>
 
-        {/* Logout Button */}
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <button
-            onClick={handleLogout}
-            className="flex items-center w-full px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 rounded-md transition-colors"
-          >
-            <span className="mr-3">🚪</span>
-            Logout
-          </button>
-        </div>
       </div>
     </nav>
   );

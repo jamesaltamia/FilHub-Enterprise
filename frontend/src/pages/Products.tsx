@@ -73,6 +73,9 @@ const Products: React.FC = () => {
       
       console.log('Setting products:', productsData);
       setProducts(productsData);
+      
+      // Save products to localStorage for Dashboard real-time updates
+      localStorage.setItem('products', JSON.stringify(productsData));
     } catch (err) {
       setError('Failed to fetch products');
       console.error('Error fetching products:', err);
@@ -185,6 +188,9 @@ const Products: React.FC = () => {
       setEditingProduct(null);
       resetForm();
       fetchProducts();
+      
+      // Trigger dashboard update
+      window.dispatchEvent(new Event('productsUpdated'));
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to save product';
       setError(errorMessage);
@@ -227,7 +233,12 @@ const Products: React.FC = () => {
         console.log('Delete response:', response);
         
         // Immediately remove from local state
-        setProducts(prevProducts => prevProducts.filter(product => product.id !== id));
+        setProducts(prevProducts => {
+          const updatedProducts = prevProducts.filter(product => product.id !== id);
+          // Update localStorage
+          localStorage.setItem('products', JSON.stringify(updatedProducts));
+          return updatedProducts;
+        });
         console.log('Product removed from local state');
         
       } catch (err: any) {
@@ -305,13 +316,13 @@ const Products: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Product Management</h1>
+          <h1 className="text-3xl font-bold text-blue-900">Product Management</h1>
           <p className="text-gray-600 mt-1">Manage your inventory products</p>
         </div>
         {(role === 'admin' || role === 'cashier') && (
           <button
             onClick={handleAddNew}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+            className="bg-blue-800 text-white px-4 py-2 rounded-lg hover:bg-blue-900 transition-colors flex items-center"
           >
             <span className="mr-2">➕</span>
             Add Product
@@ -320,7 +331,7 @@ const Products: React.FC = () => {
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white p-4 rounded-lg shadow mb-6">
+      <div className="bg-white p-4 rounded-lg shadow mb-6 border-l-4 border-blue-800">
         <div className="flex gap-4">
           <div className="flex-1">
             <input
@@ -328,7 +339,7 @@ const Products: React.FC = () => {
               placeholder="Search products by name or SKU..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-transparent"
             />
           </div>
         </div>
@@ -377,7 +388,9 @@ const Products: React.FC = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredProducts.map((product) => (
-                <tr key={product.id} className="bg-white border-b hover:bg-gray-50">
+                <tr key={product.id} className={`bg-white border-b hover:bg-gray-50 ${
+                  product.stock_quantity <= product.min_stock_level ? 'animate-pulse' : ''
+                }`}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="w-16 h-16 flex-shrink-0">
                       {product.image ? (
@@ -429,13 +442,13 @@ const Products: React.FC = () => {
                     <div className="flex items-center">
                       <span className={`text-sm font-medium ${
                         product.stock_quantity <= product.min_stock_level 
-                          ? 'text-red-600' 
+                          ? 'text-red-600 animate-pulse' 
                           : 'text-gray-900'
                       }`}>
                         {product.stock_quantity}
                       </span>
                       {product.stock_quantity <= product.min_stock_level && (
-                        <span className="ml-2 text-xs text-red-500">⚠️ Low Stock</span>
+                        <span className="ml-2 text-xs text-red-500 animate-bounce">⚠️ Low Stock</span>
                       )}
                     </div>
                   </td>
@@ -453,13 +466,13 @@ const Products: React.FC = () => {
                       <div className="flex space-x-2">
                         <button
                           onClick={() => handleEdit(product)}
-                          className="text-blue-600 hover:text-blue-900"
+                          className="text-blue-800 hover:text-blue-900 font-medium"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => handleDelete(product.id)}
-                          className="text-red-600 hover:text-red-900"
+                          className="text-yellow-600 hover:text-yellow-700 font-medium"
                         >
                           Delete
                         </button>
@@ -722,7 +735,7 @@ const Products: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-800 border border-transparent rounded-md hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-800"
                   >
                     {editingProduct ? 'Update' : 'Create'}
                   </button>

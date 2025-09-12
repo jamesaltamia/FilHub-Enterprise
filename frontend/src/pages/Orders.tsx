@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { ordersAPI, productsAPI } from '../services/api';
+import { productsAPI } from '../services/api';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface Order {
   id: number;
@@ -31,6 +32,7 @@ interface Order {
 
 const Orders: React.FC = () => {
   const { role } = useAuth();
+  const { theme } = useTheme();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,7 @@ const Orders: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [orderStats, setOrderStats] = useState<any>(null);
   
@@ -58,66 +61,40 @@ const Orders: React.FC = () => {
   const [paidAmount, setPaidAmount] = useState(0);
   const [productSearch, setProductSearch] = useState('');
 
-  // Fetch orders
+  // Fetch orders - Demo mode only
   const fetchOrders = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const params: any = {};
-      
-      if (searchTerm) params.search = searchTerm;
-      if (paymentStatusFilter) params.payment_status = paymentStatusFilter;
-      if (orderStatusFilter) params.order_status = orderStatusFilter;
-      if (dateFrom) params.date_from = dateFrom;
-      if (dateTo) params.date_to = dateTo;
-      
-      const response = await ordersAPI.getAll(params);
-      if (response && response.data) {
-        setOrders(Array.isArray(response.data.data) ? response.data.data : (Array.isArray(response.data) ? response.data : []));
-      } else {
-        setOrders([]);
-      }
-    } catch (err: any) {
-      // Don't set error for auth issues as they're handled by interceptor
-      if (err?.response?.status !== 401) {
-        setError('Failed to fetch orders. Please check your connection.');
-      }
-      setOrders([]);
-      console.error('Error fetching orders:', err);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    setError(null);
+    // Skip API calls, use local state only
+    setLoading(false);
   };
 
   // Fetch order statistics (only try once)
   const [statsAttempted, setStatsAttempted] = useState(false);
   
   const fetchOrderStats = async () => {
-    if (statsAttempted) return; // Prevent multiple attempts
-    
-    try {
-      setStatsAttempted(true);
-      const response = await ordersAPI.getStats();
-      if (response && response.data) {
-        setOrderStats(response.data);
-      }
-    } catch (err: any) {
-      // If stats endpoint doesn't exist (404), just use fallback
-      if (err?.response?.status === 404) {
-        console.log('Stats endpoint not available, will use calculated stats');
-      } else if (err?.response?.status !== 401) {
-        console.error('Error fetching order stats:', err);
-      }
-      // Don't set orderStats here, let calculateFallbackStats handle it
-    }
+    if (statsAttempted) return;
+    setStatsAttempted(true);
+    // Don't calculate here - let useEffect handle it
   };
 
   // Calculate basic stats from orders data when API endpoint is not available
   const calculateFallbackStats = () => {
+    console.log('calculateFallbackStats called with orders:', orders);
     const totalOrders = orders.length;
-    const totalRevenue = orders.reduce((sum, order) => sum + order.total_amount, 0);
+    const totalRevenue = orders.reduce((sum, order) => {
+      console.log('Order:', order, 'Total amount:', order.total_amount);
+      return sum + (order.total_amount || 0);
+    }, 0);
     const pendingOrders = orders.filter(order => order.order_status === 'pending').length;
-    const outstandingAmount = orders.reduce((sum, order) => sum + order.due_amount, 0);
+    const outstandingAmount = orders.reduce((sum, order) => sum + (order.due_amount || 0), 0);
+
+    console.log('Calculated stats:', {
+      total_orders: totalOrders,
+      total_revenue: totalRevenue,
+      pending_orders: pendingOrders,
+      outstanding_amount: outstandingAmount
+    });
 
     setOrderStats({
       total_orders: totalOrders,
@@ -144,23 +121,52 @@ const Orders: React.FC = () => {
     }
   };
 
+  // Load orders from localStorage and set up real-time updates
   useEffect(() => {
-    // Add a small delay to prevent immediate API calls on mount
-    const timer = setTimeout(() => {
-      fetchOrders();
-      // Try to fetch stats once on initial load
-      if (!orderStats) {
-        fetchOrderStats();
-      }
-    }, 100);
+    const loadOrders = () => {
+      const savedOrders = JSON.parse(localStorage.getItem('orders') || '[]');
+      console.log('Loading orders from localStorage:', savedOrders);
+      setOrders(savedOrders);
+      setLoading(false);
+    };
+
+    // Initial load
+    loadOrders();
     
-    return () => clearTimeout(timer);
+    // Listen for storage changes (when Sales page adds new orders)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'orders') {
+        loadOrders();
+      }
+    };
+
+    // Listen for custom events (for same-tab updates)
+    const handleOrdersUpdate = () => {
+      loadOrders();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('ordersUpdated', handleOrdersUpdate);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('ordersUpdated', handleOrdersUpdate);
+    };
   }, [searchTerm, paymentStatusFilter, orderStatusFilter, dateFrom, dateTo]);
 
   // Calculate stats when orders change, without making API calls
   useEffect(() => {
-    if (orders.length >= 0) {
+    if (orders.length > 0) {
+      console.log('Calculating stats for orders:', orders);
       calculateFallbackStats();
+    } else {
+      // Set zero stats when no orders
+      setOrderStats({
+        total_orders: 0,
+        total_revenue: 0,
+        pending_orders: 0,
+        outstanding_amount: 0
+      });
     }
   }, [orders]);
 
@@ -173,8 +179,18 @@ const Orders: React.FC = () => {
   // Handle status update
   const handleStatusUpdate = async (orderId: number, newStatus: string) => {
     try {
-      await ordersAPI.updateStatus(orderId, newStatus as any);
-      fetchOrders();
+      // Update locally for demo mode
+      const updatedOrders = orders.map(order => 
+        order.id === orderId 
+          ? { ...order, order_status: newStatus as 'pending' | 'processing' | 'completed' | 'cancelled' }
+          : order
+      );
+      setOrders(updatedOrders);
+      
+      // Update localStorage
+      localStorage.setItem('orders', JSON.stringify(updatedOrders));
+      
+      // Stats will be recalculated automatically by useEffect
     } catch (err) {
       setError('Failed to update order status');
       console.error('Error updating status:', err);
@@ -185,9 +201,24 @@ const Orders: React.FC = () => {
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this order?')) {
       try {
-        await ordersAPI.delete(id);
-        fetchOrders();
-        fetchOrderStats();
+        // Remove from local orders list for demo mode
+        const orderToDelete = orders.find(order => order.id === id);
+        const updatedOrders = orders.filter(order => order.id !== id);
+        setOrders(updatedOrders);
+        
+        // Update localStorage
+        localStorage.setItem('orders', JSON.stringify(updatedOrders));
+        
+        // Update stats
+        if (orderToDelete && orderStats) {
+          setOrderStats({
+            ...orderStats,
+            total_orders: Math.max(0, orderStats.total_orders - 1),
+            total_revenue: Math.max(0, orderStats.total_revenue - orderToDelete.total_amount),
+            pending_orders: orderToDelete.order_status === 'pending' ? Math.max(0, orderStats.pending_orders - 1) : orderStats.pending_orders,
+            outstanding_amount: Math.max(0, orderStats.outstanding_amount - orderToDelete.due_amount)
+          });
+        }
       } catch (err) {
         setError('Failed to delete order');
         console.error('Error deleting order:', err);
@@ -200,16 +231,245 @@ const Orders: React.FC = () => {
     if (!selectedOrder || !paymentAmount) return;
     
     try {
-      await ordersAPI.updatePayment(selectedOrder.id, parseFloat(paymentAmount));
+      const newPaidAmount = selectedOrder.paid_amount + parseFloat(paymentAmount);
+      const newDueAmount = Math.max(0, selectedOrder.total_amount - newPaidAmount);
+      const newPaymentStatus = newDueAmount === 0 ? 'paid' : (newPaidAmount > 0 ? 'partial' : 'pending');
+      
+      // Update locally for demo mode
+      const updatedOrders = orders.map(order => 
+        order.id === selectedOrder.id 
+          ? { 
+              ...order, 
+              paid_amount: newPaidAmount,
+              due_amount: newDueAmount,
+              payment_status: newPaymentStatus as 'pending' | 'partial' | 'paid'
+            }
+          : order
+      );
+      setOrders(updatedOrders);
+      
+      // Update localStorage
+      localStorage.setItem('orders', JSON.stringify(updatedOrders));
+      
+      // Stats will be recalculated automatically by useEffect
+      
       setShowPaymentModal(false);
       setPaymentAmount('');
       setSelectedOrder(null);
-      fetchOrders();
-      fetchOrderStats();
     } catch (err) {
       setError('Failed to update payment');
       console.error('Error updating payment:', err);
     }
+  };
+
+  // Print receipt function
+  const printReceipt = (order: Order) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const receiptHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Receipt - ${order.order_number}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            max-width: 320px; 
+            margin: 0 auto; 
+            padding: 24px; 
+            background: #fff;
+            color: #333;
+            line-height: 1.4;
+          }
+          .header { 
+            text-align: center; 
+            padding-bottom: 20px; 
+            margin-bottom: 24px; 
+            border-bottom: 1px solid #e0e0e0;
+          }
+          .header h2 { 
+            font-size: 24px; 
+            font-weight: 700; 
+            color: #2563eb; 
+            margin-bottom: 4px; 
+          }
+          .header p { 
+            font-size: 12px; 
+            color: #6b7280; 
+            font-weight: 500; 
+          }
+          .order-info { 
+            background: #f8fafc; 
+            padding: 16px; 
+            border-radius: 8px; 
+            margin-bottom: 24px; 
+          }
+          .order-info p { 
+            margin-bottom: 6px; 
+            font-size: 14px; 
+          }
+          .order-info strong { 
+            color: #374151; 
+            font-weight: 600; 
+          }
+          .items { 
+            margin-bottom: 24px; 
+          }
+          .items h3 { 
+            font-size: 16px; 
+            font-weight: 600; 
+            color: #374151; 
+            margin-bottom: 16px; 
+            padding-bottom: 8px; 
+            border-bottom: 1px solid #e5e7eb; 
+          }
+          .item { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-start; 
+            padding: 12px 0; 
+            border-bottom: 1px solid #f3f4f6; 
+          }
+          .item:last-child { 
+            border-bottom: none; 
+          }
+          .item-details { 
+            flex: 1; 
+          }
+          .item-name { 
+            font-weight: 600; 
+            font-size: 15px; 
+            color: #111827; 
+            margin-bottom: 4px; 
+          }
+          .item-quantity { 
+            font-size: 12px; 
+            color: #6b7280; 
+            font-weight: 500; 
+          }
+          .item-price { 
+            font-weight: 600; 
+            font-size: 15px; 
+            color: #111827; 
+            margin-left: 16px; 
+          }
+          .totals { 
+            background: #f8fafc; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 24px; 
+          }
+          .total-line { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 8px; 
+            font-size: 14px; 
+          }
+          .total-line:last-child { 
+            margin-bottom: 0; 
+          }
+          .final-total { 
+            font-weight: 700; 
+            font-size: 18px; 
+            color: #111827; 
+            padding-top: 12px; 
+            margin-top: 12px; 
+            border-top: 1px solid #d1d5db; 
+          }
+          .footer { 
+            text-align: center; 
+            padding-top: 20px; 
+            border-top: 1px solid #e5e7eb; 
+          }
+          .footer p { 
+            font-size: 13px; 
+            color: #6b7280; 
+            margin-bottom: 4px; 
+          }
+          .footer .thank-you { 
+            font-weight: 600; 
+            color: #2563eb; 
+            font-size: 14px; 
+          }
+          @media print { 
+            body { margin: 0; padding: 16px; } 
+            .header h2 { color: #000 !important; }
+            .footer .thank-you { color: #000 !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>FilHub Enterprise</h2>
+          <p>POS & Inventory Management System</p>
+        </div>
+        
+        <div class="order-info">
+          <p><strong>Order #:</strong> ${order.order_number}</p>
+          <p><strong>Date:</strong> ${new Date(order.created_at).toLocaleDateString()}</p>
+          <p><strong>Customer:</strong> ${order.customer?.name || 'Walk-in Customer'}</p>
+          ${order.customer?.phone ? `<p><strong>Phone:</strong> ${order.customer.phone}</p>` : ''}
+        </div>
+
+        <div class="items">
+          <h3>Items:</h3>
+          ${(order as any).items ? (order as any).items.map((item: any) => `
+            <div class="item">
+              <div class="item-details">
+                <div class="item-name">${item.name || item.product_name || 'Product'}</div>
+                <div class="item-quantity">Quantity: ${item.quantity}</div>
+              </div>
+              <span class="item-price">₱${(item.total || item.price * item.quantity).toFixed(2)}</span>
+            </div>
+          `).join('') : '<p>No items available</p>'}
+        </div>
+
+        <div class="totals">
+          <div class="total-line">
+            <span>Subtotal:</span>
+            <span>₱${order.subtotal.toFixed(2)}</span>
+          </div>
+          ${order.discount_amount > 0 ? `
+            <div class="total-line">
+              <span>Discount:</span>
+              <span>-₱${order.discount_amount.toFixed(2)}</span>
+            </div>
+          ` : ''}
+          <div class="total-line final-total">
+            <span>Total:</span>
+            <span>₱${order.total_amount.toFixed(2)}</span>
+          </div>
+          <div class="total-line">
+            <span>Paid:</span>
+            <span>₱${order.paid_amount.toFixed(2)}</span>
+          </div>
+          ${order.due_amount > 0 ? `
+            <div class="total-line">
+              <span>Due:</span>
+              <span>₱${order.due_amount.toFixed(2)}</span>
+            </div>
+          ` : ''}
+          ${order.paid_amount > order.total_amount ? `
+            <div class="total-line">
+              <span>Change:</span>
+              <span>₱${(order.paid_amount - order.total_amount).toFixed(2)}</span>
+            </div>
+          ` : ''}
+        </div>
+
+        <div class="footer">
+          <p class="thank-you">Thank you for your business!</p>
+          <p>${new Date().toLocaleString()}</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(receiptHTML);
+    printWindow.document.close();
+    printWindow.print();
   };
 
   // Export orders to CSV
@@ -292,40 +552,58 @@ const Orders: React.FC = () => {
     }
 
     try {
-      const { taxAmount } = calculateOrderTotals();
+      setError(null); // Clear any previous errors
+      const totals = calculateOrderTotals();
       
-      const orderData = {
-        items: selectedProducts.map(p => ({
-          product_id: p.id,
-          qty: p.quantity,
-          price: p.price
-        })),
-        paid_amount: paidAmount,
+      // Create mock order for demo mode (since API is not available)
+      const mockOrder = {
+        id: Date.now(),
+        order_number: `ORD-${String(Date.now()).slice(-6)}`,
+        customer: customerName ? { 
+          id: Date.now() + 1,
+          name: customerName, 
+          phone: customerPhone, 
+          email: customerEmail 
+        } : null,
+        user: {
+          id: 1,
+          name: 'Current User'
+        },
+        subtotal: totals.subtotal,
         discount_amount: discountAmount,
-        tax_amount: taxAmount,
+        tax_amount: totals.taxAmount,
+        total_amount: totals.total,
+        paid_amount: paidAmount,
+        due_amount: totals.dueAmount,
+        payment_status: (paidAmount >= totals.total ? 'paid' : (paidAmount > 0 ? 'partial' : 'pending')) as 'pending' | 'partial' | 'paid',
+        order_status: 'pending' as 'pending' | 'processing' | 'completed' | 'cancelled',
         notes: orderNotes,
-        order_status: 'pending' as const
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
-
-      await ordersAPI.create(orderData);
+      
+      // Add to local orders list
+      setOrders(prev => [mockOrder as Order, ...prev]);
+      
+      // Update stats
+      const newStats = {
+        total_orders: (orderStats?.total_orders || 0) + 1,
+        total_revenue: (orderStats?.total_revenue || 0) + totals.total,
+        pending_orders: (orderStats?.pending_orders || 0) + 1,
+        outstanding_amount: (orderStats?.outstanding_amount || 0) + totals.dueAmount
+      };
+      setOrderStats(newStats);
       
       // Reset form
-      setSelectedProducts([]);
-      setCustomerName('');
-      setCustomerPhone('');
-      setCustomerEmail('');
-      setOrderNotes('');
-      setDiscountAmount(0);
-      setPaidAmount(0);
-      setProductSearch('');
+      resetCreateOrderForm();
       setShowCreateModal(false);
       
-      // Refresh data
-      fetchOrders();
-      fetchOrderStats();
-    } catch (err) {
-      setError('Failed to create order');
+      // Show success message
+      alert('Order created successfully!');
+      
+    } catch (err: any) {
       console.error('Error creating order:', err);
+      setError('Failed to create order. Please try again.');
     }
   };
 
@@ -372,11 +650,11 @@ const Orders: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div className={`p-6 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading orders...</p>
+            <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Loading orders...</p>
           </div>
         </div>
       </div>
@@ -384,85 +662,36 @@ const Orders: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
+    <div className={`p-6 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Order Management</h1>
-          <p className="text-gray-600 mt-1">Manage customer orders and track payments</p>
+          <h1 className={`text-3xl font-bold ${theme === 'dark' ? 'text-blue-400' : 'text-blue-900'}`}>Order Management</h1>
+          <p className={`mt-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Manage customer orders and track payments</p>
         </div>
         <div className="flex space-x-3">
           <button
             onClick={exportToCSV}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
+            className="bg-yellow-500 text-blue-900 font-medium px-4 py-2 rounded-lg hover:bg-yellow-400 transition-colors flex items-center"
           >
             <span className="mr-2">📊</span>
             Export CSV
           </button>
           {role === 'admin' && (
             <button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+              onClick={() => setShowPrintModal(true)}
+              className="bg-blue-800 text-white px-4 py-2 rounded-lg hover:bg-blue-900 transition-colors flex items-center space-x-2"
             >
-              <span className="mr-2">➕</span>
-              Create Order
+              <span>🖨️</span>
+              <span>Print Receipt</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      {orderStats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-blue-100 text-blue-600">
-                📋
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Orders</p>
-                <p className="text-2xl font-semibold text-gray-900">{orderStats.total_orders || 0}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-green-100 text-green-600">
-                💰
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-                <p className="text-2xl font-semibold text-gray-900">₱{orderStats.total_revenue?.toFixed(2) || '0.00'}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-yellow-100 text-yellow-600">
-                ⏳
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Pending Orders</p>
-                <p className="text-2xl font-semibold text-gray-900">{orderStats.pending_orders || 0}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-red-100 text-red-600">
-                💳
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Outstanding Amount</p>
-                <p className="text-2xl font-semibold text-gray-900">₱{orderStats.outstanding_amount?.toFixed(2) || '0.00'}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow mb-6">
+      <div className={`p-4 rounded-lg shadow mb-6 border-l-4 border-blue-800 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <div>
             <input
@@ -470,14 +699,14 @@ const Orders: React.FC = () => {
               placeholder="Search orders..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900'}`}
             />
           </div>
           <div>
             <select
               value={paymentStatusFilter}
               onChange={(e) => setPaymentStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900'}`}
             >
               <option value="">All Payment Status</option>
               <option value="pending">Pending</option>
@@ -489,7 +718,7 @@ const Orders: React.FC = () => {
             <select
               value={orderStatusFilter}
               onChange={(e) => setOrderStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900'}`}
             >
               <option value="">All Order Status</option>
               <option value="pending">Pending</option>
@@ -504,7 +733,7 @@ const Orders: React.FC = () => {
               placeholder="From Date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900'}`}
             />
           </div>
           <div>
@@ -513,13 +742,13 @@ const Orders: React.FC = () => {
               placeholder="To Date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900'}`}
             />
           </div>
           <div>
             <button
               onClick={clearFilters}
-              className="w-full px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              className={`w-full px-3 py-2 rounded-lg transition-colors ${theme === 'dark' ? 'bg-gray-600 text-white hover:bg-gray-500' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             >
               Clear Filters
             </button>
@@ -542,68 +771,100 @@ const Orders: React.FC = () => {
       )}
 
       {/* Orders Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className={`rounded-lg shadow overflow-hidden border-l-4 border-yellow-500 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-blue-50'}>
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
                   Order Details
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
                   Customer
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
                   Amount
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
                   Payment Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
                   Order Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
                   Date
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className={`divide-y ${theme === 'dark' ? 'bg-gray-800 divide-gray-700' : 'bg-white divide-gray-200'}`}>
               {orders.map((order) => (
-                <tr key={order.id} className="hover:bg-gray-50">
+                <tr key={order.id} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{order.order_number}</div>
-                      <div className="text-sm text-gray-500">ID: {order.id}</div>
+                    <div className="flex items-center space-x-3">
+                      {/* Product Images for Completed Orders */}
+                      {order.order_status === 'completed' && (order as any).items && (order as any).items.length > 0 && (
+                        <div className="flex -space-x-2">
+                          {(order as any).items.slice(0, 3).map((item: any, index: number) => (
+                            <div key={index} className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 overflow-hidden">
+                              {item.image ? (
+                                <img
+                                  src={item.image}
+                                  alt={item.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">📦</span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          {(order as any).items.length > 3 && (
+                            <div className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">+{(order as any).items.length - 3}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div>
+                        <div className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{order.order_number}</div>
+                        <div className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>ID: {order.id}</div>
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
+                    <div className={`text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                       {order.customer?.name || 'Walk-in Customer'}
                     </div>
                     {order.customer?.phone && (
-                      <div className="text-sm text-gray-500">{order.customer.phone}</div>
+                      <div className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{order.customer.phone}</div>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">₱{order.total_amount.toFixed(2)}</div>
+                    <div className={`text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>₱{order.total_amount.toFixed(2)}</div>
                     {order.due_amount > 0 && (
                       <div className="text-sm text-red-600">Due: ₱{order.due_amount.toFixed(2)}</div>
                     )}
+                    {order.paid_amount && order.paid_amount > order.total_amount && (
+                      <div className="text-sm text-green-600 dark:text-green-400">
+                        Change: ₱{(order.paid_amount - order.total_amount).toFixed(2)}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeColor(order.payment_status, 'payment')}`}>
-                      {order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeColor(order.payment_status || 'pending', 'payment')}`}>
+                      {(order.payment_status || 'pending').charAt(0).toUpperCase() + (order.payment_status || 'pending').slice(1)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeColor(order.order_status, 'order')}`}>
-                      {order.order_status.charAt(0).toUpperCase() + order.order_status.slice(1)}
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeColor(order.order_status || 'pending', 'order')}`}>
+                      {(order.order_status || 'pending').charAt(0).toUpperCase() + (order.order_status || 'pending').slice(1)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                     {new Date(order.created_at).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -613,7 +874,7 @@ const Orders: React.FC = () => {
                           setSelectedOrder(order);
                           setShowDetailsModal(true);
                         }}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="text-blue-800 hover:text-blue-900 font-medium"
                       >
                         View
                       </button>
@@ -622,7 +883,11 @@ const Orders: React.FC = () => {
                           <select
                             value={order.order_status}
                             onChange={(e) => handleStatusUpdate(order.id, e.target.value)}
-                            className="text-xs border border-gray-300 rounded px-2 py-1"
+                            className={`text-xs border rounded px-2 py-1 ${
+                              theme === 'dark' 
+                                ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                                : 'bg-white border-gray-300 text-gray-900'
+                            }`}
                           >
                             <option value="pending">Pending</option>
                             <option value="processing">Processing</option>
@@ -635,7 +900,7 @@ const Orders: React.FC = () => {
                                 setSelectedOrder(order);
                                 setShowPaymentModal(true);
                               }}
-                              className="text-green-600 hover:text-green-900"
+                              className="text-yellow-600 hover:text-yellow-700 font-medium"
                             >
                               Pay
                             </button>
@@ -671,7 +936,7 @@ const Orders: React.FC = () => {
                     fetchOrders();
                     fetchOrderStats();
                   }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="bg-blue-800 text-white px-4 py-2 rounded-lg hover:bg-blue-900 transition-colors"
                 >
                   Retry Connection
                 </button>
@@ -684,12 +949,12 @@ const Orders: React.FC = () => {
       {/* Order Details Modal */}
       {showDetailsModal && selectedOrder && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+          <div className={`relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md ${theme === 'dark' ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-300'}`}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Order Details</h3>
+              <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>Order Details</h3>
               <button
                 onClick={() => setShowDetailsModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className={`${theme === 'dark' ? 'text-gray-300 hover:text-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
               >
                 ✕
               </button>
@@ -697,47 +962,47 @@ const Orders: React.FC = () => {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Order Number</p>
-                  <p className="text-lg text-gray-900">{selectedOrder.order_number}</p>
+                  <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Order Number</p>
+                  <p className={`text-lg ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>{selectedOrder.order_number}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Date</p>
-                  <p className="text-lg text-gray-900">{new Date(selectedOrder.created_at).toLocaleDateString()}</p>
+                  <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Date</p>
+                  <p className={`text-lg ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>{new Date(selectedOrder.created_at).toLocaleDateString()}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Customer</p>
-                  <p className="text-lg text-gray-900">{selectedOrder.customer?.name || 'Walk-in Customer'}</p>
+                  <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Customer</p>
+                  <p className={`text-lg ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>{selectedOrder.customer?.name || 'Walk-in Customer'}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Phone</p>
-                  <p className="text-lg text-gray-900">{selectedOrder.customer?.phone || 'N/A'}</p>
+                  <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Phone</p>
+                  <p className={`text-lg ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>{selectedOrder.customer?.phone || 'N/A'}</p>
                 </div>
               </div>
-              <div className="border-t pt-4">
+              <div className={`border-t pt-4 ${theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Subtotal</p>
-                    <p className="text-lg text-gray-900">₱{selectedOrder.subtotal.toFixed(2)}</p>
+                    <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Subtotal</p>
+                    <p className={`text-lg ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>₱{(selectedOrder.subtotal || 0).toFixed(2)}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Discount</p>
-                    <p className="text-lg text-gray-900">₱{selectedOrder.discount_amount.toFixed(2)}</p>
+                    <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Discount</p>
+                    <p className={`text-lg ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>₱{(selectedOrder.discount_amount || 0).toFixed(2)}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Tax</p>
-                    <p className="text-lg text-gray-900">₱{selectedOrder.tax_amount.toFixed(2)}</p>
+                    <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Tax</p>
+                    <p className={`text-lg ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>₱{(selectedOrder.tax_amount || 0).toFixed(2)}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Total</p>
-                    <p className="text-xl font-bold text-gray-900">₱{selectedOrder.total_amount.toFixed(2)}</p>
+                    <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Total</p>
+                    <p className={`text-xl font-bold ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>₱{(selectedOrder.total_amount || 0).toFixed(2)}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-600">Paid Amount</p>
-                    <p className="text-lg text-green-600">₱{selectedOrder.paid_amount.toFixed(2)}</p>
+                    <p className="text-lg text-green-600">₱{(selectedOrder.paid_amount || 0).toFixed(2)}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-600">Due Amount</p>
-                    <p className="text-lg text-red-600">₱{selectedOrder.due_amount.toFixed(2)}</p>
+                    <p className="text-lg text-red-600">₱{(selectedOrder.due_amount || 0).toFixed(2)}</p>
                   </div>
                 </div>
               </div>
@@ -745,14 +1010,14 @@ const Orders: React.FC = () => {
                 <div className="flex space-x-4">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Payment Status</p>
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeColor(selectedOrder.payment_status, 'payment')}`}>
-                      {selectedOrder.payment_status.charAt(0).toUpperCase() + selectedOrder.payment_status.slice(1)}
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeColor(selectedOrder.payment_status || 'pending', 'payment')}`}>
+                      {(selectedOrder.payment_status || 'pending').charAt(0).toUpperCase() + (selectedOrder.payment_status || 'pending').slice(1)}
                     </span>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-600">Order Status</p>
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeColor(selectedOrder.order_status, 'order')}`}>
-                      {selectedOrder.order_status.charAt(0).toUpperCase() + selectedOrder.order_status.slice(1)}
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeColor(selectedOrder.order_status || 'pending', 'order')}`}>
+                      {(selectedOrder.order_status || 'pending').charAt(0).toUpperCase() + (selectedOrder.order_status || 'pending').slice(1)}
                     </span>
                   </div>
                 </div>
@@ -806,7 +1071,7 @@ const Orders: React.FC = () => {
                 <button
                   onClick={handlePaymentUpdate}
                   disabled={!paymentAmount || parseFloat(paymentAmount) <= 0}
-                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400"
+                  className="flex-1 bg-blue-800 text-white px-4 py-2 rounded-lg hover:bg-blue-900 transition-colors disabled:bg-gray-400"
                 >
                   Update Payment
                 </button>
@@ -979,60 +1244,6 @@ const Orders: React.FC = () => {
                           <div className="flex justify-between">
                             <span>Subtotal:</span>
                             <span>₱{subtotal.toFixed(2)}</span>
-                          </div>
-                          
-                          <div className="flex justify-between items-center">
-                            <span>Discount:</span>
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              max={subtotal}
-                              value={discountAmount}
-                              onChange={(e) => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-                              className="w-20 px-2 py-1 border border-gray-300 rounded text-right text-sm"
-                            />
-                          </div>
-                          
-                          <div className="flex justify-between items-center">
-                            <span>Tax:</span>
-                            <div className="flex items-center space-x-1">
-                              <input
-                                type="number"
-                                step="0.1"
-                                min="0"
-                                max="50"
-                                value={taxRate}
-                                onChange={(e) => setTaxRate(Math.max(0, parseFloat(e.target.value) || 0))}
-                                className="w-12 px-1 py-1 border border-gray-300 rounded text-right text-xs"
-                              />
-                              <span className="text-xs">%</span>
-                              <span className="text-sm">₱{taxAmount.toFixed(2)}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="border-t pt-2">
-                            <div className="flex justify-between font-semibold text-lg">
-                              <span>Total:</span>
-                              <span>₱{total.toFixed(2)}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="flex justify-between items-center">
-                            <span>Paid Amount:</span>
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              max={total}
-                              value={paidAmount}
-                              onChange={(e) => setPaidAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-                              className="w-24 px-2 py-1 border border-gray-300 rounded text-right text-sm"
-                            />
-                          </div>
-                          
-                          <div className="flex justify-between font-medium">
-                            <span>Due Amount:</span>
                             <span className={dueAmount > 0 ? 'text-red-600' : 'text-green-600'}>
                               ₱{dueAmount.toFixed(2)}
                             </span>
@@ -1075,6 +1286,56 @@ const Orders: React.FC = () => {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Print Receipt Modal */}
+      {showPrintModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Select Order to Print</h3>
+              <button
+                onClick={() => setShowPrintModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="max-h-96 overflow-y-auto">
+              {orders.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No orders available to print</p>
+              ) : (
+                <div className="space-y-2">
+                  {orders.map((order) => (
+                    <div
+                      key={order.id}
+                      className="border rounded-lg p-3 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => {
+                        printReceipt(order);
+                        setShowPrintModal(false);
+                      }}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-medium">{order.order_number}</div>
+                          <div className="text-sm text-gray-500">
+                            {order.customer?.name || 'Walk-in Customer'}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-medium">₱{order.total_amount.toFixed(2)}</div>
+                          <div className="text-sm text-gray-500">
+                            {new Date(order.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
