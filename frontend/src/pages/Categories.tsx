@@ -72,18 +72,38 @@ const Categories: React.FC = () => {
   const fetchCategories = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
+      // Try API first
       const response = await categoriesAPI.getAll();
       // Handle paginated response
       if (response.data && Array.isArray(response.data.data)) {
         setCategories(response.data.data);
+        localStorage.setItem('categories', JSON.stringify(response.data.data));
       } else if (response.data && Array.isArray(response.data)) {
         setCategories(response.data);
+        localStorage.setItem('categories', JSON.stringify(response.data));
       } else {
         setCategories([]);
       }
-    } catch (err) {
-      setError('Failed to fetch categories');
-      console.error('Error fetching categories:', err);
+    } catch {
+      // Silently handle API errors - don't log to console to avoid error spam
+      
+      // Only fallback to localStorage, don't overwrite with demo data
+      const storedCategories = localStorage.getItem('categories');
+      if (storedCategories) {
+        try {
+          const parsedCategories = JSON.parse(storedCategories);
+          setCategories(parsedCategories);
+          setError('Using cached categories (API unavailable)');
+        } catch {
+          setCategories([]);
+          setError('Failed to fetch categories');
+        }
+      } else {
+        setCategories([]);
+        setError('Failed to fetch categories');
+      }
     } finally {
       setLoading(false);
     }
@@ -103,12 +123,19 @@ const Categories: React.FC = () => {
       setProducts(productsData);
       // Update localStorage with fresh data
       localStorage.setItem('products', JSON.stringify(productsData));
-    } catch (err) {
-      console.error('Error fetching products:', err);
-      // Fallback to localStorage if API fails
+    } catch {
+      // Silently handle API errors - don't log to console to avoid error spam
+      // Fallback to localStorage
       const storedProducts = localStorage.getItem('products');
       if (storedProducts) {
-        setProducts(JSON.parse(storedProducts));
+        try {
+          setProducts(JSON.parse(storedProducts));
+        } catch {
+          setProducts([]);
+        }
+      } else {
+        // Don't add demo products, keep empty array
+        setProducts([]);
       }
     }
   };

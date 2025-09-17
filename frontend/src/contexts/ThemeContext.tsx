@@ -35,7 +35,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     }
   }, []);
 
-  // Apply theme to document
+  // Apply theme to document and load custom colors
   useEffect(() => {
     const root = document.documentElement;
     if (theme === 'dark') {
@@ -44,6 +44,29 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       root.classList.remove('dark');
     }
     localStorage.setItem('theme', theme);
+
+    // Apply custom theme colors from localStorage
+    const savedColors = localStorage.getItem('themeColors');
+    if (savedColors) {
+      const colors = JSON.parse(savedColors);
+      root.style.setProperty('--color-primary', colors.primary || '#1e40af');
+      root.style.setProperty('--color-secondary', colors.secondary || '#fbbf24');
+      root.style.setProperty('--color-accent', colors.accent || '#10b981');
+    }
+
+    // Listen for theme color changes
+    const handleThemeColorsChanged = (event: CustomEvent) => {
+      const colors = event.detail.colors;
+      root.style.setProperty('--color-primary', colors.primary);
+      root.style.setProperty('--color-secondary', colors.secondary);
+      root.style.setProperty('--color-accent', colors.accent);
+    };
+
+    window.addEventListener('themeColorsChanged', handleThemeColorsChanged as EventListener);
+    
+    return () => {
+      window.removeEventListener('themeColorsChanged', handleThemeColorsChanged as EventListener);
+    };
   }, [theme]);
 
   const toggleTheme = () => {

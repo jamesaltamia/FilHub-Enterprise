@@ -126,7 +126,40 @@ const Orders: React.FC = () => {
     const loadOrders = () => {
       const savedOrders = JSON.parse(localStorage.getItem('orders') || '[]');
       console.log('Loading orders from localStorage:', savedOrders);
-      setOrders(savedOrders);
+      
+      // Apply filters
+      let filteredOrders = savedOrders;
+      
+      if (searchTerm) {
+        filteredOrders = filteredOrders.filter((order: any) =>
+          order.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (order.customer?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (order.customer?.phone || '').toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      }
+      
+      if (paymentStatusFilter) {
+        filteredOrders = filteredOrders.filter((order: any) => order.payment_status === paymentStatusFilter);
+      }
+      
+      if (orderStatusFilter) {
+        filteredOrders = filteredOrders.filter((order: any) => order.order_status === orderStatusFilter);
+      }
+      
+      if (dateFrom) {
+        filteredOrders = filteredOrders.filter((order: any) => 
+          new Date(order.created_at) >= new Date(dateFrom)
+        );
+      }
+      
+      if (dateTo) {
+        filteredOrders = filteredOrders.filter((order: any) => 
+          new Date(order.created_at) <= new Date(dateTo + 'T23:59:59')
+        );
+      }
+      
+      console.log('Filtered orders:', filteredOrders);
+      setOrders(filteredOrders);
       setLoading(false);
     };
 
@@ -800,7 +833,18 @@ const Orders: React.FC = () => {
               </tr>
             </thead>
             <tbody className={`divide-y ${theme === 'dark' ? 'bg-gray-800 divide-gray-700' : 'bg-white divide-gray-200'}`}>
-              {orders.map((order) => (
+              {orders.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center">
+                    <div className={`text-center ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                      <div className="text-4xl mb-4">📋</div>
+                      <p className="text-lg font-medium mb-2">No orders found</p>
+                      <p className="text-sm">Orders will appear here after processing sales</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                orders.map((order) => (
                 <tr key={order.id} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center space-x-3">
@@ -844,13 +888,13 @@ const Orders: React.FC = () => {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className={`text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>₱{order.total_amount.toFixed(2)}</div>
-                    {order.due_amount > 0 && (
-                      <div className="text-sm text-red-600">Due: ₱{order.due_amount.toFixed(2)}</div>
+                    <div className={`text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>₱{(order.total_amount || 0).toFixed(2)}</div>
+                    {(order.due_amount || 0) > 0 && (
+                      <div className="text-sm text-red-600">Due: ₱{(order.due_amount || 0).toFixed(2)}</div>
                     )}
-                    {order.paid_amount && order.paid_amount > order.total_amount && (
+                    {order.paid_amount && (order.paid_amount || 0) > (order.total_amount || 0) && (
                       <div className="text-sm text-green-600 dark:text-green-400">
-                        Change: ₱{(order.paid_amount - order.total_amount).toFixed(2)}
+                        Change: ₱{((order.paid_amount || 0) - (order.total_amount || 0)).toFixed(2)}
                       </div>
                     )}
                   </td>
@@ -865,7 +909,7 @@ const Orders: React.FC = () => {
                     </span>
                   </td>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                    {new Date(order.created_at).toLocaleDateString()}
+                    {order.created_at ? new Date(order.created_at).toLocaleDateString() : 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
@@ -916,7 +960,8 @@ const Orders: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+                ))
+              )}
             </tbody>
           </table>
         </div>

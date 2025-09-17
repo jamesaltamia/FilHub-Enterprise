@@ -18,6 +18,9 @@ const Navigation: React.FC<NavigationProps> = ({ isOpen }) => {
   const { user, role } = useAuth();
   const location = useLocation();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  
+  console.log("Navigation - user:", user);
+  console.log("Navigation - role:", role);
 
   const navigationItems: NavigationItem[] = [
     {

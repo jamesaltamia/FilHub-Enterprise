@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-import type { ReactNode } from "react";
-import { authAPI } from "../services/api";
+import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { authAPI } from '../services/api';
+import { TwoFactorAuthService } from '../utils/twoFactorAuth';
+import TwoFactorVerification from '../components/TwoFactorVerification';
 
 interface User {
   id: number;
@@ -58,101 +59,265 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     JSON.parse(localStorage.getItem("permissions") || "[]")
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [showTwoFactorVerification, setShowTwoFactorVerification] = useState(false);
+  const [pendingUser, setPendingUser] = useState<User & { token?: string; role?: string; permissions?: string[] } | null>(null);
+
 
   // Restore session on mount
   useEffect(() => {
     if (token && !user) {
-      // Only fetch user if we have both token and no user data
-      // Add a delay to prevent immediate API calls
-      const timer = setTimeout(() => {
-        fetchUser();
-      }, 500);
-      return () => clearTimeout(timer);
+      // For demo tokens, don't fetch from API
+      if (token.startsWith('demo_token_')) {
+        setIsLoading(false);
+        return;
+      }
     } else {
       setIsLoading(false);
     }
-  }, []);
-
-  const fetchUser = async () => {
-    try {
-      console.log("Fetching user profile...");
-      // Use the profile endpoint from authAPI
-      const response = await authAPI.updateProfile({});
-      console.log("Profile response:", response);
-
-      if (response.success && response.data) {
-        const userData = response.data;
-        setUser(userData);
-        localStorage.setItem("user", JSON.stringify(userData));
-        console.log("User profile updated successfully");
-      } else {
-        // If profile fetch fails, keep existing user data but don't logout
-        console.log("Profile fetch failed, keeping existing session");
-      }
-    } catch (error: any) {
-      console.error("Error fetching user profile:", error);
-      // Don't clear session on profile fetch failure
-      // Only logout if it's a real auth issue
-      if (error?.response?.status === 401) {
-        localStorage.clear();
-        setUser(null);
-        setToken(null);
-        setRole(null);
-        setPermissions([]);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [token, user]);
 
   const login = async (email: string, password: string) => {
     try {
       console.log("Attempting login for:", email);
+      console.log("Password length:", password.length);
+      console.log("Password characters:", password.split('').map(c => c.charCodeAt(0)));
 
-      const response = await authAPI.login(email, password);
-      console.log("Login response:", response);
+      // First try API login
+      try {
+        const response = await authAPI.login(email, password);
+        console.log("API Login response:", response);
 
-      if (response.success && response.data) {
-        const loginData = response.data;
-        const userData = loginData.user || loginData;
-        const userToken = loginData.token || loginData.access_token;
-        const userRole = loginData.role || "user";
-        const userPermissions = loginData.permissions || [];
+        if (response.success && response.data) {
+          const loginData = response.data;
+          const userData = loginData.user || loginData;
+          
+          // Check if user has 2FA enabled
+          const has2FA = TwoFactorAuthService.is2FAEnabled(userData.email);
+          console.log(`2FA check for ${userData.email}: ${has2FA}`);
+          
+          if (has2FA) {
+            console.log("Showing 2FA verification modal for API user");
+            // Show 2FA verification modal - store token and role info for later
+            const userWithToken = {
+              ...userData,
+              token: response.data.token,
+              role: userData.role || 'user',
+              permissions: userData.permissions || []
+            };
+            setPendingUser(userWithToken);
+            setShowTwoFactorVerification(true);
+            return;
+          }
 
-        if (!userData || !userToken) {
-          throw new Error("Login response missing user or token");
+          console.log("Completing API login without 2FA");
+          // Complete login without 2FA - set admin role for demo
+          setUser(userData);
+          setToken(response.data.token);
+          setRole('admin');
+          setPermissions(['manage_users', 'manage_inventory', 'view_reports']);
+          
+          // Store in localStorage
+          localStorage.setItem("user", JSON.stringify(userData));
+          localStorage.setItem("token", response.data.token);
+          localStorage.setItem("auth_token", response.data.token);
+          localStorage.setItem("role", 'admin');
+          localStorage.setItem("permissions", JSON.stringify(['manage_users', 'manage_inventory', 'view_reports']));
+
+          console.log("API Login successful, user state updated");
+          return;
         }
-
-        setUser(userData);
-        setToken(userToken);
-        setRole(userRole);
-        setPermissions(userPermissions);
-
-        // Store in localStorage with correct key names
-        localStorage.setItem("user", JSON.stringify(userData));
-        localStorage.setItem("token", userToken);
-        localStorage.setItem("auth_token", userToken); // Also store with auth_token key for API
-        localStorage.setItem("role", userRole || "");
-        localStorage.setItem("permissions", JSON.stringify(userPermissions));
-
-        console.log("Login successful, user state updated");
-      } else {
-        throw new Error(response.message || "Login failed");
+      } catch (apiError) {
+        console.log("API login failed, trying localStorage fallback:", apiError);
       }
+
+      // Fallback: Check localStorage users (demo mode)
+      console.log("Trying localStorage fallback authentication...");
+      const localUsers = localStorage.getItem('filhub_users');
+      console.log("localStorage users data:", localUsers);
+      console.log("All localStorage keys:", Object.keys(localStorage));
+      
+      if (localUsers) {
+        const users = JSON.parse(localUsers);
+        console.log("Parsed users:", users);
+        console.log("Looking for email:", email, "password:", password);
+        
+        // Debug: Log all users first
+        users.forEach((u: User & { password?: string; role?: string; status?: string }, index: number) => {
+          console.log(`User ${index}:`, {
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            password: u.password,
+            role: u.role,
+            status: u.status
+          });
+        });
+        
+        console.log("Input credentials:", { email, password });
+        
+        const foundUser = users.find((user: User & { password?: string; role?: string }) => {
+          const emailMatch = user.email?.toLowerCase().trim() === email.toLowerCase().trim();
+          const passwordMatch = user.password?.trim() === password.trim();
+          return emailMatch && passwordMatch;
+        });
+        
+        console.log("Found user:", foundUser);
+        
+        if (foundUser) {
+          // Check if user has 2FA enabled
+          const has2FA = TwoFactorAuthService.is2FAEnabled(foundUser.email);
+          console.log(`2FA check for ${foundUser.email}: ${has2FA}`);
+          
+          if (has2FA) {
+            console.log("Showing 2FA verification modal");
+            // Show 2FA verification modal
+            setPendingUser(foundUser);
+            setShowTwoFactorVerification(true);
+            return;
+          }
+
+          console.log("Completing login without 2FA");
+          // Complete login without 2FA
+          completeLogin(foundUser);
+          return;
+        } else {
+          console.log("No matching user found in localStorage");
+        }
+      } else {
+        console.log("No localStorage users found");
+        // Force initialize localStorage with default users if empty
+        const defaultUsers = [
+          { id: 1, name: 'Admin User', email: 'admin@filhub.com', role: 'admin', status: 'active', password: 'admin123' },
+          { id: 2, name: 'Cashier User', email: 'cashier@filhub.com', role: 'cashier', status: 'active', password: 'cashier123' }
+        ];
+        localStorage.setItem('filhub_users', JSON.stringify(defaultUsers));
+        console.log("Initialized localStorage with default users");
+        
+        // Try to find user in default users
+        const foundUser = defaultUsers.find(u => u.email === email && u.password === password);
+        if (foundUser) {
+          completeLogin(foundUser);
+          return;
+        }
+      }
+
+      // If both API and localStorage fail
+      throw new Error("Invalid email or password");
     } catch (error) {
       console.error("Login error:", error);
       throw error;
     }
   };
 
+  const completeLogin = (foundUser: User & { role?: string }) => {
+    const demoToken = `demo_token_${Date.now()}`;
+    const userData = {
+      id: foundUser.id,
+      name: foundUser.name,
+      email: foundUser.email,
+      phone: '',
+      address: ''
+    };
+
+    setUser(userData);
+    setToken(demoToken);
+    const userRole = foundUser.role || 'user';
+    setRole(userRole);
+    setPermissions(userRole === 'admin' ? ['manage_users', 'manage_inventory', 'view_reports'] : ['manage_sales']);
+
+    localStorage.setItem("user", JSON.stringify(userData));
+    localStorage.setItem("token", demoToken);
+    localStorage.setItem("auth_token", demoToken);
+    localStorage.setItem("role", userRole);
+    localStorage.setItem("permissions", JSON.stringify(userRole === 'admin' ? ['manage_users', 'manage_inventory', 'view_reports'] : ['manage_sales']));
+
+    console.log("Login successful for:", foundUser.name);
+  };
+
+  const handle2FASuccess = () => {
+    if (pendingUser) {
+      console.log("2FA Success - pendingUser:", pendingUser);
+      
+      // For API users, we need to set the token from the original response
+      if (pendingUser.token) {
+        console.log("Processing API user 2FA success");
+        const userData = {
+          id: pendingUser.id,
+          name: pendingUser.name,
+          email: pendingUser.email,
+          phone: pendingUser.phone || '',
+          address: pendingUser.address || ''
+        };
+        
+        // For demo purposes, set admin role for API users since they don't have role in response
+        const userRole = 'admin';
+        const userPermissions = pendingUser.permissions || (userRole === 'admin' ? ['manage_users', 'manage_inventory', 'view_reports'] : ['manage_sales']);
+        
+        console.log("Setting role:", userRole);
+        console.log("Setting permissions:", userPermissions);
+        
+        setUser(userData);
+        setToken(pendingUser.token);
+        setRole(userRole);
+        setPermissions(userPermissions);
+        
+        // Store in localStorage
+        localStorage.setItem("user", JSON.stringify(userData));
+        localStorage.setItem("token", pendingUser.token);
+        localStorage.setItem("auth_token", pendingUser.token);
+        localStorage.setItem("role", userRole);
+        localStorage.setItem("permissions", JSON.stringify(userPermissions));
+        
+        console.log("API user 2FA login completed");
+      } else {
+        // For localStorage users, use completeLogin
+        console.log("Processing localStorage user 2FA success");
+        completeLogin(pendingUser);
+      }
+      
+      setShowTwoFactorVerification(false);
+      setPendingUser(null);
+    }
+  };
+
+  const handle2FACancel = () => {
+    setShowTwoFactorVerification(false);
+    setPendingUser(null);
+  };
+
   const logout = () => {
     console.log("Logging out user");
 
     if (token) {
-      authAPI.logout().catch(console.error);
+      authAPI.logout().catch(() => {
+        // Ignore logout API errors - user is logging out anyway
+      });
     }
 
+    // Clear auth data but preserve user list and 2FA data
+    const users = localStorage.getItem('filhub_users');
+    const twoFactorKeys = Object.keys(localStorage).filter(key => key.startsWith('2fa_'));
+    const twoFactorData: { [key: string]: string } = {};
+    
+    // Save 2FA data
+    twoFactorKeys.forEach(key => {
+      const value = localStorage.getItem(key);
+      if (value) {
+        twoFactorData[key] = value;
+      }
+    });
+    
     localStorage.clear();
+    
+    // Restore preserved data
+    if (users) {
+      localStorage.setItem('filhub_users', users);
+    }
+    
+    // Restore 2FA data
+    Object.keys(twoFactorData).forEach(key => {
+      localStorage.setItem(key, twoFactorData[key]);
+    });
     setUser(null);
     setToken(null);
     setRole(null);
@@ -198,6 +363,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={value}>{children}
+      {showTwoFactorVerification && pendingUser && (
+        <TwoFactorVerification
+          userEmail={pendingUser.email}
+          onSuccess={handle2FASuccess}
+          onCancel={handle2FACancel}
+        />
+      )}
+    </AuthContext.Provider>
   );
 };

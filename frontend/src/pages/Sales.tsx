@@ -36,9 +36,16 @@ interface SaleItem {
 }
 
 interface Customer {
+  id?: number;
   name: string;
   phone: string;
   email: string;
+  address?: string;
+  city?: string;
+  postal_code?: string;
+  total_orders?: number;
+  total_spent?: number;
+  is_active?: boolean;
 }
 
 const Sales: React.FC = () => {
@@ -62,6 +69,8 @@ const Sales: React.FC = () => {
     phone: '',
     email: ''
   });
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   
   // Payment and totals
   const [subtotal, setSubtotal] = useState(0);
@@ -111,14 +120,29 @@ const Sales: React.FC = () => {
     }
   };
 
-  // Add product from navigation (when redirected from Products page)
   useEffect(() => {
+    fetchProducts();
+    fetchCustomers();
+    
+    // If redirected from Products page with a product, add it to sale
     if (productFromNavigation) {
       addToSale(productFromNavigation);
-      // Clear the navigation state
+      // Clear the navigation state to prevent re-adding on refresh
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [productFromNavigation]);
+
+  // Fetch customers from localStorage
+  const fetchCustomers = () => {
+    try {
+      const storedCustomers = localStorage.getItem('customers');
+      if (storedCustomers) {
+        setCustomers(JSON.parse(storedCustomers));
+      }
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+    }
+  };
 
   useEffect(() => {
     fetchProducts();
@@ -222,22 +246,51 @@ const Sales: React.FC = () => {
       });
       localStorage.setItem('products', JSON.stringify(updatedProducts));
 
+      // Update customer data if customer is selected
+      if (customer.id) {
+        const existingCustomers = JSON.parse(localStorage.getItem('customers') || '[]');
+        const updatedCustomers = existingCustomers.map((c: any) => {
+          if (c.id === customer.id) {
+            return {
+              ...c,
+              total_orders: (c.total_orders || 0) + 1,
+              total_spent: (c.total_spent || 0) + total,
+              last_order_date: new Date().toISOString().split('T')[0]
+            };
+          }
+          return c;
+        });
+        localStorage.setItem('customers', JSON.stringify(updatedCustomers));
+      }
+
       // Save order to localStorage
       const existingOrders = JSON.parse(localStorage.getItem('orders') || '[]');
       const newOrder = {
         id: Date.now(),
         order_number: `ORD-${Date.now()}`,
-        customer: customer.name ? { name: customer.name, phone: customer.phone } : null,
+        customer_id: customer.id || null,
+        customer: customer.name ? { 
+          id: customer.id,
+          name: customer.name, 
+          phone: customer.phone,
+          email: customer.email
+        } : null,
+        user: {
+          id: 1,
+          name: 'Current User'
+        },
         items: saleItems,
-        paid_amount: paidAmount,
+        subtotal: saleItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
         discount_amount: discountAmount,
         tax_amount: taxAmount,
         total_amount: total,
-        subtotal: subtotal,
-        created_at: new Date().toISOString(),
-        payment_status: paidAmount >= total ? 'paid' : 'partial',
+        paid_amount: paidAmount,
+        due_amount: Math.max(0, total - paidAmount),
+        payment_status: paidAmount >= total ? 'paid' : (paidAmount > 0 ? 'partial' : 'pending'),
         order_status: 'completed',
-        notes: customer.name ? `Customer: ${customer.name}, Phone: ${customer.phone}` : 'Walk-in customer'
+        notes: customer.name ? `Customer: ${customer.name}, Phone: ${customer.phone}` : 'Walk-in customer',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
       existingOrders.push(newOrder);
       localStorage.setItem('orders', JSON.stringify(existingOrders));
@@ -452,56 +505,124 @@ const Sales: React.FC = () => {
       {/* Customer Modal */}
       {showCustomerModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className={`${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} p-6 rounded-lg w-96`}>
-            <h3 className="text-lg font-semibold mb-4">Customer Information</h3>
-            <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Customer Name"
-                value={customer.name}
-                onChange={(e) => setCustomer({...customer, name: e.target.value})}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  theme === 'dark' 
-                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                    : 'bg-white border-gray-300 text-gray-900'
+          <div className={`${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} p-6 rounded-lg w-96 relative`}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Select Customer</h3>
+              <button
+                onClick={() => setShowCustomerModal(false)}
+                className={`text-2xl font-bold hover:opacity-70 transition-opacity ${
+                  theme === 'dark' ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'
                 }`}
-              />
-              <input
-                type="tel"
-                placeholder="Phone Number"
-                value={customer.phone}
-                onChange={(e) => setCustomer({...customer, phone: e.target.value})}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  theme === 'dark' 
-                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                    : 'bg-white border-gray-300 text-gray-900'
-                }`}
-              />
-              <input
-                type="email"
-                placeholder="Email Address"
-                value={customer.email}
-                onChange={(e) => setCustomer({...customer, email: e.target.value})}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  theme === 'dark' 
-                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                    : 'bg-white border-gray-300 text-gray-900'
-                }`}
-              />
+              >
+                ×
+              </button>
             </div>
+            
+            {customers.length > 0 ? (
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">Choose from existing customers</label>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowCustomerDropdown(!showCustomerDropdown)}
+                    className={`w-full px-3 py-2 border rounded-lg text-left focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      theme === 'dark' 
+                        ? 'bg-gray-700 border-gray-600 text-white' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                  >
+                    {customer.name || 'Choose a customer...'}
+                    <span className="float-right">▼</span>
+                  </button>
+                  
+                  {showCustomerDropdown && (
+                    <div className={`absolute z-10 w-full mt-1 border rounded-lg shadow-lg max-h-48 overflow-y-auto ${
+                      theme === 'dark' 
+                        ? 'bg-gray-700 border-gray-600' 
+                        : 'bg-white border-gray-300'
+                    }`}>
+                      <button
+                        onClick={() => {
+                          setCustomer({ name: '', phone: '', email: '' });
+                          setShowCustomerDropdown(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-600 ${
+                          theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+                        }`}
+                      >
+                        No Customer (Walk-in)
+                      </button>
+                      {customers.filter(c => c.is_active !== false).map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => {
+                            setCustomer({
+                              id: c.id,
+                              name: c.name,
+                              phone: c.phone,
+                              email: c.email,
+                              address: c.address,
+                              city: c.city,
+                              postal_code: c.postal_code
+                            });
+                            setShowCustomerDropdown(false);
+                          }}
+                          className={`w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-600 border-t ${
+                            theme === 'dark' 
+                              ? 'border-gray-600 text-white' 
+                              : 'border-gray-200 text-gray-900'
+                          }`}
+                        >
+                          <div className="font-medium">{c.name}</div>
+                          <div className="text-sm opacity-75">{c.phone} • {c.email}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Selected Customer Details */}
+                {customer.name && (
+                  <div className={`mt-4 p-3 rounded-lg ${
+                    theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'
+                  }`}>
+                    <h4 className={`font-medium mb-2 ${
+                      theme === 'dark' ? 'text-gray-200' : 'text-gray-800'
+                    }`}>Selected Customer:</h4>
+                    <div className={`text-sm space-y-1 ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+                    }`}>
+                      <p><span className="font-medium">Name:</span> {customer.name}</p>
+                      <p><span className="font-medium">Phone:</span> {customer.phone}</p>
+                      <p><span className="font-medium">Email:</span> {customer.email}</p>
+                      {customer.address && (
+                        <p><span className="font-medium">Address:</span> {customer.address}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className={`text-center py-8 ${
+                theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                <p className="mb-4">No customers found.</p>
+                <p className="text-sm">Add customers in the Customers page first.</p>
+              </div>
+            )}
+            
             <div className="flex space-x-3 mt-6">
               <button
                 onClick={() => setShowCustomerModal(false)}
                 className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
               >
-                Save
+                Select
               </button>
               <button
                 onClick={() => setShowCustomerModal(false)}
                 className={`flex-1 px-4 py-2 rounded-lg transition-colors ${
                   theme === 'dark' 
                     ? 'bg-gray-600 text-white hover:bg-gray-500' 
-                    : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
                 }`}
               >
                 Cancel

@@ -1,0 +1,103 @@
+/* Custom CSS Variables for Theme Colors */
+:root {
+  --color-primary: #1e40af;
+  --color-secondary: #fbbf24;
+  --color-accent: #10b981;
+}
+
+/* Apply custom colors to components */
+.btn-primary {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.btn-primary:hover {
+  background-color: color-mix(in srgb, var(--color-primary) 85%, black);
+  border-color: color-mix(in srgb, var(--color-primary) 85%, black);
+}
+
+.btn-secondary {
+  background-color: var(--color-secondary);
+  border-color: var(--color-secondary);
+  color: #1f2937;
+}
+
+.btn-secondary:hover {
+  background-color: color-mix(in srgb, var(--color-secondary) 85%, black);
+  border-color: color-mix(in srgb, var(--color-secondary) 85%, black);
+}
+
+.text-primary {
+  color: var(--color-primary);
+}
+
+.text-secondary {
+  color: var(--color-secondary);
+}
+
+.text-accent {
+  color: var(--color-accent);
+}
+
+.bg-primary {
+  background-color: var(--color-primary);
+}
+
+.bg-secondary {
+  background-color: var(--color-secondary);
+}
+
+.bg-accent {
+  background-color: var(--color-accent);
+}
+
+.border-primary {
+  border-color: var(--color-primary);
+}
+
+.border-secondary {
+  border-color: var(--color-secondary);
+}
+
+.border-accent {
+  border-color: var(--color-accent);
+}
+
+/* Navigation customization */
+.nav-primary {
+  background-color: var(--color-primary);
+}
+
+/* Button focus states */
+.btn-primary:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+
+.btn-secondary:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-secondary) 25%, transparent);
+}
+
+/* Link colors */
+.link-primary {
+  color: var(--color-primary);
+}
+
+.link-primary:hover {
+  color: color-mix(in srgb, var(--color-primary) 80%, black);
+}
+
+/* Badge colors */
+.badge-primary {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.badge-secondary {
+  background-color: var(--color-secondary);
+  color: #1f2937;
+}
+
+.badge-accent {
+  background-color: var(--color-accent);
+  color: white;
+}

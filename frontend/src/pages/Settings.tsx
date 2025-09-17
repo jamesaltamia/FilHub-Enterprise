@@ -25,6 +25,13 @@ const Settings: React.FC = () => {
   });
   
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+
+  // Update 2FA state when user changes or component mounts
+  useEffect(() => {
+    if (user?.email) {
+      setTwoFactorEnabled(TwoFactorAuthService.is2FAEnabled(user.email));
+    }
+  }, [user?.email]);
   const [showTwoFactorSetup, setShowTwoFactorSetup] = useState(false);
   const [show2FADisableConfirm, setShow2FADisableConfirm] = useState(false);
   const [backupInProgress, setBackupInProgress] = useState(false);
@@ -42,10 +49,6 @@ const Settings: React.FC = () => {
     const saved = localStorage.getItem('lowStockThreshold');
     return saved ? parseInt(saved) : 5;
   });
-  const [users, setUsers] = useState([
-    { id: 1, name: 'Admin User', email: 'admin@filhub.com', role: 'admin', status: 'active' },
-    { id: 2, name: 'Cashier User', email: 'cashier@filhub.com', role: 'cashier', status: 'active' }
-  ]);
 
   // Sync form state with user context changes
   useEffect(() => {
@@ -59,12 +62,6 @@ const Settings: React.FC = () => {
     }
   }, [user]);
   
-  const [newUser, setNewUser] = useState({
-    name: '',
-    email: '',
-    role: 'cashier',
-    password: ''
-  });
   
   const [themeColors, setThemeColors] = useState(() => {
     const saved = localStorage.getItem('themeColors');
@@ -109,7 +106,6 @@ const Settings: React.FC = () => {
   const tabs = [
     { id: 'personal', name: 'Personal Info', icon: '👤' },
     { id: 'security', name: 'Security', icon: '🔒' },
-    { id: 'users', name: 'User Management', icon: '👥' },
     { id: 'inventory', name: 'Inventory Settings', icon: '📦' },
     { id: 'backup', name: 'Backup & Restore', icon: '💾' },
     { id: 'appearance', name: 'Theme & Appearance', icon: '🎨' },
@@ -284,6 +280,15 @@ const Settings: React.FC = () => {
                         <button 
                           onClick={() => {
                             if (passwordForm.newPassword === passwordForm.confirmPassword) {
+                              // Update password in localStorage users
+                              const users = JSON.parse(localStorage.getItem('filhub_users') || '[]');
+                              const updatedUsers = users.map((u: any) => 
+                                u.email === user?.email 
+                                  ? { ...u, password: passwordForm.newPassword }
+                                  : u
+                              );
+                              localStorage.setItem('filhub_users', JSON.stringify(updatedUsers));
+                              
                               alert('Password changed successfully!');
                               setPasswordForm({currentPassword: '', newPassword: '', confirmPassword: ''});
                             } else {
@@ -345,131 +350,6 @@ const Settings: React.FC = () => {
                 </div>
               )}
 
-              {/* User Management Tab */}
-              {activeTab === 'users' && role === 'admin' && (
-                <div className="p-6">
-                  <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-6">
-                    User Management
-                  </h2>
-                  
-                  <div className="space-y-6">
-                    {/* Add New User */}
-                    <div className="border-b border-gray-200 dark:border-gray-700 pb-6">
-                      <h3 className="text-md font-medium text-gray-900 dark:text-white mb-4">
-                        Add New User
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
-                        <input
-                          type="text"
-                          placeholder="Full Name"
-                          value={newUser.name}
-                          onChange={(e) => setNewUser({...newUser, name: e.target.value})}
-                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        />
-                        <input
-                          type="email"
-                          placeholder="Email Address"
-                          value={newUser.email}
-                          onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        />
-                        <select
-                          value={newUser.role}
-                          onChange={(e) => setNewUser({...newUser, role: e.target.value})}
-                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        >
-                          <option value="cashier">Cashier</option>
-                          <option value="admin">Admin</option>
-                        </select>
-                        <input
-                          type="password"
-                          placeholder="Password"
-                          value={newUser.password}
-                          onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        />
-                      </div>
-                      <button 
-                        onClick={() => {
-                          if (newUser.name && newUser.email && newUser.password) {
-                            const newId = Math.max(...users.map(u => u.id)) + 1;
-                            setUsers([...users, {...newUser, id: newId, status: 'active'}]);
-                            setNewUser({name: '', email: '', role: 'cashier', password: ''});
-                            alert('User added successfully!');
-                          } else {
-                            alert('Please fill all fields');
-                          }
-                        }}
-                        className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                      >
-                        Add User
-                      </button>
-                    </div>
-
-                    {/* Users List */}
-                    <div>
-                      <h3 className="text-md font-medium text-gray-900 dark:text-white mb-4">
-                        Existing Users
-                      </h3>
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                          <thead className="bg-gray-50 dark:bg-gray-700">
-                            <tr>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                User
-                              </th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Role
-                              </th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Status
-                              </th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Actions
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                            {users.map((user) => (
-                              <tr key={user.id}>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div>
-                                    <div className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</div>
-                                    <div className="text-sm text-gray-500 dark:text-gray-400">{user.email}</div>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                    user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                                  }`}>
-                                    {user.role}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                    {user.status}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                  <button 
-                                    onClick={() => {
-                                      setUsers(users.filter(u => u.id !== user.id));
-                                      alert('User removed successfully!');
-                                    }}
-                                    className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                                  >
-                                    Remove
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Inventory Settings Tab */}
               {activeTab === 'inventory' && (

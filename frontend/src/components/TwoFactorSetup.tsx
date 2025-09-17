@@ -55,7 +55,9 @@ const TwoFactorSetupComponent: React.FC<TwoFactorSetupProps> = ({ onComplete, on
 
     // Save 2FA setup
     TwoFactorAuthService.save2FASetup(user.email, setupData.secret, setupData.backupCodes);
+    console.log(`2FA setup completed for ${user.email}, data saved to localStorage`);
     onComplete(true);
+    alert('Two-factor authentication has been enabled successfully!');
   };
 
   const downloadBackupCodes = () => {

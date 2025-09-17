@@ -5,12 +5,15 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import Login from './pages/auth/Login';
 import Dashboard from './pages/Dashboard';
 import Categories from './pages/Categories';
+import Customers from './pages/Customers';
 import Orders from './pages/Orders';
 import Sales from './pages/Sales';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Users from './pages/Users';
 import Layout from './components/Layout';
 import LoadingSpinner from './components/LoadingSpinner';
+import './styles/theme.css';
 
 // Protected route component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -65,10 +68,10 @@ const AppRoutes: React.FC = () => {
         <Route path="pos" element={<Sales />} />
         <Route path="sales" element={<Sales />} />
         <Route path="categories" element={<Categories />} />
-        <Route path="customers" element={<div className="text-center py-12"><h1 className="text-2xl font-bold">Customer Management</h1><p className="text-gray-600 mt-2">Coming soon...</p></div>} />
+        <Route path="customers" element={<Customers />} />
         <Route path="orders" element={<Orders />} />
         <Route path="reports" element={<Reports />} />
-        <Route path="users" element={<div className="text-center py-12"><h1 className="text-2xl font-bold">User Management</h1><p className="text-gray-600 mt-2">Coming soon...</p></div>} />
+        <Route path="users" element={<Users />} />
         <Route path="settings" element={<Settings />} />
       </Route>
 
