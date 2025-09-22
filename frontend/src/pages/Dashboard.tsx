@@ -97,15 +97,20 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const StatCard: React.FC<{ title: string; value: string | number; icon: string; color: string }> = ({ title, value, icon, color }) => (
-    <div className={`rounded-lg shadow-sm border-l-4 ${color} p-6 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
-      <div className="flex items-center">
-        <div className="flex-shrink-0">
-          <span className="text-2xl">{icon}</span>
+  const StatCard: React.FC<{ title: string; value: string | number; icon: string; color: string; gradient?: string }> = ({ title, value, icon, color, gradient }) => (
+    <div className={`group rounded-2xl shadow-xl border backdrop-blur-sm transition-all duration-300 hover:shadow-2xl transform hover:scale-105 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className={`p-3 rounded-xl ${gradient || 'bg-blue-100'}`}>
+            <span className="text-2xl">{icon}</span>
+          </div>
+          <div className={`px-3 py-1 rounded-full text-xs font-medium ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+            Live
+          </div>
         </div>
-        <div className="ml-4">
-          <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{title}</p>
-          <p className={`text-2xl font-semibold ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>{value}</p>
+        <div>
+          <p className={`text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{title}</p>
+          <p className={`text-3xl font-bold bg-gradient-to-r ${gradient ? 'from-blue-600 to-purple-600' : 'from-gray-900 to-gray-700'} bg-clip-text text-transparent ${theme === 'dark' ? 'from-white to-gray-300' : ''}`}>{value}</p>
         </div>
       </div>
     </div>
@@ -120,94 +125,143 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className={`min-h-screen p-6 transition-colors duration-200 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <div className="max-w-7xl mx-auto">
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 to-indigo-100'}`}>
+      {/* Modern Header */}
+      <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b backdrop-blur-sm bg-opacity-95 sticky top-0 z-10`}>
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-4">
+              <div className={`p-3 rounded-xl ${theme === 'dark' ? 'bg-blue-900' : 'bg-blue-100'}`}>
+                <span className="text-2xl">📊</span>
+              </div>
+              <div>
+                <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Dashboard</h1>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Welcome back! Here's your business overview</p>
+              </div>
+            </div>
+            <div className={`px-4 py-2 rounded-xl ${theme === 'dark' ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-800'} font-medium`}>
+              <span className="mr-2">🟢</span>
+              System Online
+            </div>
+          </div>
+        </div>
+      </div>
 
-        {/* Low Stock Alert */}
-        <LowStockAlert 
-          products={JSON.parse(localStorage.getItem('products') || '[]').map((p: any) => ({
-            ...p,
-            stock: p.stock_quantity || p.stock || 0
-          }))}
-          className="mb-6"
-        />
-
-        {/* Stats Grid */}
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        {/* Modern Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           <StatCard
             title="Total Revenue"
             value={`₱${stats.totalSales.toLocaleString()}`}
             icon="💰"
             color="border-yellow-500"
+            gradient={theme === 'dark' ? 'bg-yellow-900' : 'bg-gradient-to-br from-yellow-100 to-orange-100'}
           />
           <StatCard
             title="Total Orders"
             value={stats.totalOrders}
             icon="📋"
             color="border-blue-800"
+            gradient={theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-br from-blue-100 to-indigo-100'}
           />
           <StatCard
             title="Pending Orders"
             value={stats.pendingOrders}
             icon="⏳"
             color="border-yellow-600"
+            gradient={theme === 'dark' ? 'bg-orange-900' : 'bg-gradient-to-br from-orange-100 to-red-100'}
           />
           <StatCard
             title="Today's Sales"
             value={`₱${stats.todaysSales.toLocaleString()}`}
             icon="📈"
             color="border-green-500"
+            gradient={theme === 'dark' ? 'bg-green-900' : 'bg-gradient-to-br from-green-100 to-emerald-100'}
           />
         </div>
 
-        {/* Additional Stats for Admin */}
+        {/* Modern Additional Stats for Admin */}
         {role === 'admin' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            {/* Low Stock Alert */}
+            {/* Modern Low Stock Alert */}
             <div 
-              className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border-l-4 border-yellow-500 p-6 ${
-                stats.lowStockProducts > 0 ? 'animate-pulse cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700' : ''
+              className={`group ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-xl border backdrop-blur-sm transition-all duration-300 hover:shadow-2xl transform hover:scale-105 p-6 ${
+                stats.lowStockProducts > 0 ? 'cursor-pointer' : ''
               }`}
               onClick={() => stats.lowStockProducts > 0 && setShowLowStockModal(true)}
             >
-              <h3 className={`text-lg font-medium text-blue-900 dark:text-blue-400 mb-4 ${
-                stats.lowStockProducts > 0 ? 'animate-bounce' : ''
-              }`}>⚠️ Low Stock Alert</h3>
-              <div className={`text-3xl font-bold ${
-                stats.lowStockProducts > 0 ? 'text-red-600 animate-pulse' : 'text-yellow-600'
+              <div className="flex items-center justify-between mb-4">
+                <div className={`p-3 rounded-xl ${theme === 'dark' ? 'bg-red-900' : 'bg-gradient-to-br from-red-100 to-orange-100'}`}>
+                  <span className="text-2xl">⚠️</span>
+                </div>
+                {stats.lowStockProducts > 0 && (
+                  <div className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 animate-pulse">
+                    Action Required
+                  </div>
+                )}
+              </div>
+              <h3 className={`text-lg font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Low Stock Alert</h3>
+              <div className={`text-3xl font-bold mb-2 ${
+                stats.lowStockProducts > 0 ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'
               }`}>{stats.lowStockProducts}</div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                 {stats.lowStockProducts > 0 ? 'Click to view products' : 'products need restocking'}
               </p>
             </div>
 
-            {/* Total Products */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border-l-4 border-blue-800 p-6">
-              <h3 className="text-lg font-medium text-blue-900 dark:text-blue-400 mb-4">🏷️ Total Products</h3>
-              <div className="text-3xl font-bold text-blue-800 dark:text-blue-400">{stats.totalProducts}</div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">products in inventory</p>
+            {/* Modern Total Products */}
+            <div className={`group ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-xl border backdrop-blur-sm transition-all duration-300 hover:shadow-2xl transform hover:scale-105 p-6`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className={`p-3 rounded-xl ${theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-br from-blue-100 to-indigo-100'}`}>
+                  <span className="text-2xl">🏷️</span>
+                </div>
+                <div className={`px-3 py-1 rounded-full text-xs font-medium ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                  Inventory
+                </div>
+              </div>
+              <h3 className={`text-lg font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Total Products</h3>
+              <div className={`text-3xl font-bold mb-2 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>{stats.totalProducts}</div>
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>products in inventory</p>
             </div>
 
-            {/* System Status */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border-l-4 border-green-500 p-6">
-              <h3 className="text-lg font-medium text-blue-900 dark:text-blue-400 mb-4">✅ System Status</h3>
-              <div className="text-3xl font-bold text-green-600 dark:text-green-400">Online</div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">all systems operational</p>
+            {/* Modern System Status */}
+            <div className={`group ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-xl border backdrop-blur-sm transition-all duration-300 hover:shadow-2xl transform hover:scale-105 p-6`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className={`p-3 rounded-xl ${theme === 'dark' ? 'bg-green-900' : 'bg-gradient-to-br from-green-100 to-emerald-100'}`}>
+                  <span className="text-2xl">✅</span>
+                </div>
+                <div className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                  <span className="mr-1">🟢</span>Live
+                </div>
+              </div>
+              <h3 className={`text-lg font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>System Status</h3>
+              <div className={`text-3xl font-bold mb-2 ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>Online</div>
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>all systems operational</p>
             </div>
           </div>
         )}
 
 
-        {/* Recent Orders */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border-l-4 border-blue-800">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-medium text-blue-900 dark:text-blue-400">📋 Recent Orders</h3>
+        {/* Modern Recent Orders */}
+        <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-xl border backdrop-blur-sm`}>
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-purple-900' : 'bg-purple-100'}`}>
+                  <span className="text-lg">📋</span>
+                </div>
+                <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Recent Orders</h3>
+              </div>
+              <span className={`text-sm px-3 py-1 rounded-full ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                Last 5 orders
+              </span>
+            </div>
           </div>
           <div className="p-6">
             {stats.recentOrders.length > 0 ? (
-              <div className="space-y-4 max-h-96 overflow-y-auto">
+              <div className="space-y-4 max-h-96 overflow-y-auto custom-scrollbar">
                 {stats.recentOrders.map((order: any) => (
-                  <div key={order.id} className="flex items-center justify-between p-4 bg-blue-50 dark:bg-gray-700 rounded-lg border border-blue-100 dark:border-gray-600">
+                  <div key={order.id} className={`group flex items-center justify-between p-4 rounded-xl border transition-all duration-200 hover:shadow-md ${theme === 'dark' ? 'bg-gray-700 border-gray-600 hover:bg-gray-650' : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100 hover:from-blue-100 hover:to-indigo-100'}`}>
                     <div className="flex items-center space-x-3">
                       {/* Product Images for Completed Orders */}
                       {order.order_status === 'completed' && order.items && order.items.length > 0 && (
@@ -366,6 +420,25 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: ${theme === 'dark' ? '#374151' : '#f3f4f6'};
+            border-radius: 3px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: ${theme === 'dark' ? '#6b7280' : '#d1d5db'};
+            border-radius: 3px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: ${theme === 'dark' ? '#9ca3af' : '#9ca3af'};
+          }
+        `
+      }} />
     </div>
   );
 };

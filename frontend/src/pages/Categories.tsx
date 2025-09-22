@@ -67,6 +67,8 @@ const Categories: React.FC = () => {
     image: '',
     is_active: true
   });
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
 
   // Fetch categories
   const fetchCategories = async () => {
@@ -74,7 +76,19 @@ const Categories: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // Try API first
+      // In demo mode, prioritize localStorage first
+      const storedCategories = localStorage.getItem('categories');
+      if (storedCategories) {
+        try {
+          const parsedCategories = JSON.parse(storedCategories);
+          setCategories(parsedCategories);
+          return;
+        } catch {
+          // If localStorage is corrupted, continue to API fallback
+        }
+      }
+      
+      // Fallback to API if localStorage is empty or corrupted
       const response = await categoriesAPI.getAll();
       // Handle paginated response
       if (response.data && Array.isArray(response.data.data)) {
@@ -87,23 +101,8 @@ const Categories: React.FC = () => {
         setCategories([]);
       }
     } catch {
-      // Silently handle API errors - don't log to console to avoid error spam
-      
-      // Only fallback to localStorage, don't overwrite with demo data
-      const storedCategories = localStorage.getItem('categories');
-      if (storedCategories) {
-        try {
-          const parsedCategories = JSON.parse(storedCategories);
-          setCategories(parsedCategories);
-          setError('Using cached categories (API unavailable)');
-        } catch {
-          setCategories([]);
-          setError('Failed to fetch categories');
-        }
-      } else {
-        setCategories([]);
-        setError('Failed to fetch categories');
-      }
+      // Silently handle API errors in demo mode
+      setCategories([]);
     } finally {
       setLoading(false);
     }
@@ -112,7 +111,15 @@ const Categories: React.FC = () => {
   // Fetch products
   const fetchProducts = async () => {
     try {
-      // Always fetch fresh data from API to get latest updates
+      // Always fetch fresh data from localStorage first (since we're using localStorage for updates)
+      const storedProducts = localStorage.getItem('products');
+      if (storedProducts) {
+        const productsData = JSON.parse(storedProducts);
+        setProducts(productsData);
+        return;
+      }
+
+      // Fallback to API if localStorage is empty
       const response = await productsAPI.getAll();
       let productsData = [];
       if (response.data && Array.isArray(response.data.data)) {
@@ -124,8 +131,7 @@ const Categories: React.FC = () => {
       // Update localStorage with fresh data
       localStorage.setItem('products', JSON.stringify(productsData));
     } catch {
-      // Silently handle API errors - don't log to console to avoid error spam
-      // Fallback to localStorage
+      // Silently handle errors
       const storedProducts = localStorage.getItem('products');
       if (storedProducts) {
         try {
@@ -134,7 +140,6 @@ const Categories: React.FC = () => {
           setProducts([]);
         }
       } else {
-        // Don't add demo products, keep empty array
         setProducts([]);
       }
     }
@@ -143,6 +148,27 @@ const Categories: React.FC = () => {
   useEffect(() => {
     fetchCategories();
     fetchProducts();
+    
+    // Add event listener for when products are updated from other components
+    const handleProductsUpdated = () => {
+      fetchProducts();
+    };
+    
+    // Listen for custom events
+    window.addEventListener('productsUpdated', handleProductsUpdated);
+    
+    // Listen for window focus to refresh data when navigating back
+    const handleWindowFocus = () => {
+      fetchProducts();
+    };
+    
+    window.addEventListener('focus', handleWindowFocus);
+    
+    // Cleanup event listeners
+    return () => {
+      window.removeEventListener('productsUpdated', handleProductsUpdated);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
   }, []);
 
   // Handle form submission
@@ -205,6 +231,35 @@ const Categories: React.FC = () => {
     setShowModal(true);
   };
 
+  // Handle image file selection
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Check file size (limit to 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size must be less than 5MB');
+        return;
+      }
+      
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      
+      setSelectedImageFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        setImagePreview(result);
+        setProductFormData({ ...productFormData, image: result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   // Handle product submit
   const handleProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,21 +275,42 @@ const Categories: React.FC = () => {
         min_stock_level: parseInt(productFormData.min_stock_level),
         stock_quantity: parseInt(productFormData.stock_quantity),
         image: productFormData.image || null,
-        is_active: productFormData.is_active
+        is_active: productFormData.is_active,
+        created_at: editingProduct ? editingProduct.created_at : new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
+
+      // Get existing products from localStorage
+      const existingProducts = JSON.parse(localStorage.getItem('products') || '[]');
+      let updatedProducts;
 
       if (editingProduct) {
         // Update existing product
-        await api.put(`/products/${editingProduct.id}`, productData, { headers: { Authorization: `Bearer ${token}` } });
+        updatedProducts = existingProducts.map((product: any) =>
+          product.id === editingProduct.id ? { ...productData, id: editingProduct.id } : product
+        );
+        alert('Product updated successfully!');
       } else {
-        // Create new product
-        await api.post('/products', productData, { headers: { Authorization: `Bearer ${token}` } });
+        // Create new product with unique ID
+        const newProduct = {
+          ...productData,
+          id: Math.max(...existingProducts.map((p: any) => p.id), 0) + 1
+        };
+        updatedProducts = [...existingProducts, newProduct];
+        alert('Product created successfully!');
       }
       
-      // Refresh products and close modal
-      await fetchProducts();
+      // Save to localStorage
+      localStorage.setItem('products', JSON.stringify(updatedProducts));
+      
+      // Update local state
+      setProducts(updatedProducts);
+      
+      // Close modal and reset form
       setShowProductModal(false);
       setEditingProduct(null);
+      setSelectedImageFile(null);
+      setImagePreview('');
       
       // Trigger products updated event for Dashboard sync
       window.dispatchEvent(new CustomEvent('productsUpdated'));
@@ -259,36 +335,63 @@ const Categories: React.FC = () => {
   }
 
   return (
-    <div className={`p-6 min-h-screen ${theme === 'dark' ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'} transition-colors duration-200`}>
-      {/* Header */}
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className={`text-3xl font-bold ${theme === 'dark' ? 'text-blue-300' : 'text-blue-900'}`}>Inventory Management</h1>
-          <p className={`mt-1 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-600'}`}>Manage your product categories and inventory</p>
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 to-indigo-100'}`}>
+      {/* Modern Header */}
+      <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b backdrop-blur-sm bg-opacity-95 sticky top-0 z-10`}>
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-4">
+              <div className={`p-3 rounded-xl ${theme === 'dark' ? 'bg-blue-900' : 'bg-blue-100'}`}>
+                <span className="text-2xl">📦</span>
+              </div>
+              <div>
+                <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Inventory Management</h1>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Manage your product categories and inventory</p>
+              </div>
+            </div>
+            <button
+              onClick={handleAddNew}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2.5 rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 font-medium flex items-center"
+            >
+              <span className="mr-2">➕</span>
+              Add Category
+            </button>
+          </div>
         </div>
-        <button
-          onClick={handleAddNew}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-        >
-          <span className="mr-2">➕</span>
-          Add Category
-        </button>
       </div>
 
-      {/* Search */}
-      <div className={`p-4 rounded-lg shadow mb-6 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
-        <input
-          type="text"
-          placeholder="Search categories..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className={`flex-1 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            theme === 'dark' 
-              ? 'border-gray-600 bg-gray-700 text-gray-100 placeholder-gray-300' 
-              : 'border-gray-300 bg-white text-gray-900'
-          }`}
-        />
-      </div>
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        {/* Modern Search Section */}
+        <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-xl border backdrop-blur-sm mb-6`}>
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-green-900' : 'bg-green-100'}`}>
+                  <span className="text-lg">🔍</span>
+                </div>
+                <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Search Categories</h2>
+              </div>
+              <span className={`text-sm px-3 py-1 rounded-full ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                {filteredCategories.length} categories
+              </span>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <span className={`text-lg ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>🔍</span>
+              </div>
+              <input
+                type="text"
+                placeholder="Search categories by name or description..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500'}`}
+              />
+            </div>
+          </div>
+        </div>
 
       {/* Error Message */}
       {error && (
@@ -297,7 +400,7 @@ const Categories: React.FC = () => {
         </div>
       )}
 
-      {/* Categories Grid */}
+      {/* Modern Categories Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCategories.map((category) => {
           const categoryProducts = products.filter(product => product.category_id === category.id);
@@ -306,62 +409,100 @@ const Categories: React.FC = () => {
           ).length;
           
           return (
-            <div key={category.id} className={`${theme === 'dark' ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-lg shadow p-6 mb-6`}>
-              <div className="flex justify-between items-start mb-4">
-                <h2 className={`text-xl font-semibold mb-4 ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>Categories</h2>
-                <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-blue-300' : 'text-blue-900'}`}>{category.name}</h3>
-                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                  category.is_active 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-red-100 text-red-800'
-                }`}>
-                  {category.is_active ? 'Active' : 'Inactive'}
-                </span>
-              </div>
-              
-              {category.description && (
-                <p className={`text-gray-600 dark:text-gray-400 text-sm mb-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{category.description}</p>
-              )}
-              
-              {/* Product Stats */}
-              <div className="mb-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-800">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-blue-900 dark:text-blue-400">
-                    📦 {categoryProducts.length} Products
+            <div key={category.id} className={`group ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-xl border backdrop-blur-sm transition-all duration-300 hover:shadow-2xl transform hover:scale-105`}>
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-blue-900' : 'bg-blue-100'}`}>
+                      <span className="text-lg">📁</span>
+                    </div>
+                    <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{category.name}</h3>
+                  </div>
+                  <span className={`px-3 py-1 text-xs rounded-full font-medium ${
+                    category.is_active 
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                      : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                  }`}>
+                    {category.is_active ? '✅ Active' : '❌ Inactive'}
                   </span>
-                  {lowStockCount > 0 && (
-                    <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full animate-pulse">
-                      ⚠️ {lowStockCount} Low Stock
-                    </span>
-                  )}
                 </div>
-              </div>
-              
-              {/* Action Buttons */}
-              <div className="flex justify-between items-center">
-                <button
-                  onClick={() => {
-                    setSelectedCategory(category);
-                    setShowProductsModal(true);
-                  }}
-                  className="bg-blue-800 text-white px-3 py-2 rounded-md text-sm hover:bg-blue-900 transition-colors"
-                >
-                  View Products
-                </button>
                 
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => handleEdit(category)}
-                    className="text-blue-600 hover:text-blue-900 text-sm font-medium"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(category.id)}
-                    className="text-yellow-600 hover:text-yellow-700 text-sm font-medium"
-                  >
-                    Delete
-                  </button>
+                {category.description && (
+                  <p className={`text-sm mb-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{category.description}</p>
+                )}
+                
+                {/* Modern Product Stats */}
+                <div className={`mb-4 p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-700' : 'bg-gradient-to-r from-blue-50 to-indigo-50'} border-l-4 border-blue-500`}>
+                  <div className="flex justify-between items-center">
+                    <span className={`text-sm font-semibold ${theme === 'dark' ? 'text-blue-300' : 'text-blue-900'}`}>
+                      📦 {categoryProducts.length} Products
+                    </span>
+                    {lowStockCount > 0 && (
+                      <span className="text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 px-3 py-1 rounded-full animate-pulse font-medium">
+                        ⚠️ {lowStockCount} Low Stock
+                      </span>
+                    )}
+                  </div>
+                </div>
+            
+                {/* Modern Action Buttons */}
+                <div className="space-y-3">
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => {
+                        setSelectedCategory(category);
+                        setShowProductsModal(true);
+                      }}
+                      className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2.5 rounded-xl text-sm hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 font-medium flex items-center justify-center"
+                    >
+                      <span className="mr-2">👁️</span>
+                      View Products
+                    </button>
+                    {(role === 'admin' || role === 'cashier') && (
+                      <button
+                        onClick={() => {
+                          setSelectedCategory(category);
+                          setEditingProduct(null);
+                          setProductFormData({
+                            name: '',
+                            description: '',
+                            sku: `SKU-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+                            category_id: category.id.toString(),
+                            price: '',
+                            cost: '',
+                            min_stock_level: '',
+                            stock_quantity: '',
+                            image: '',
+                            is_active: true
+                          });
+                          setSelectedImageFile(null);
+                          setImagePreview('');
+                          setShowProductModal(true);
+                        }}
+                        className="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-4 py-2.5 rounded-xl text-sm hover:from-yellow-600 hover:to-orange-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 font-medium flex items-center justify-center"
+                      >
+                        <span className="mr-2">➕</span>
+                        Add Product
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleEdit(category)}
+                      className={`flex-1 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${theme === 'dark' ? 'bg-gray-700 text-blue-300 hover:bg-gray-600' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'} flex items-center justify-center`}
+                    >
+                      <span className="mr-2">✏️</span>
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(category.id)}
+                      className={`flex-1 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${theme === 'dark' ? 'bg-gray-700 text-red-300 hover:bg-gray-600' : 'bg-red-50 text-red-700 hover:bg-red-100'} flex items-center justify-center`}
+                    >
+                      <span className="mr-2">🗑️</span>
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -371,12 +512,14 @@ const Categories: React.FC = () => {
 
       {filteredCategories.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-gray-500 dark:text-gray-400 text-lg">No categories found</div>
-          <div className="text-gray-400 dark:text-gray-500 text-sm mt-1">
+          <div className={`text-4xl mb-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`}>📁</div>
+          <div className={`text-lg font-medium mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>No categories found</div>
+          <div className={`text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
             {searchTerm ? 'Try adjusting your search terms' : 'Add your first category to get started'}
           </div>
         </div>
       )}
+      </div>
 
       {/* Category Modal */}
       {showModal && (
@@ -622,6 +765,8 @@ const Categories: React.FC = () => {
                                         image: product.image || '',
                                         is_active: product.is_active
                                       });
+                                      setSelectedImageFile(null);
+                                      setImagePreview(product.image || '');
                                       setShowProductModal(true);
                                     }}
                                     className="text-blue-800 hover:text-blue-900 font-medium"
@@ -644,31 +789,7 @@ const Categories: React.FC = () => {
                 );
               })()}
               
-              <div className="flex justify-between items-center mt-6">
-                {(role === 'admin' || role === 'cashier') && (
-                  <button
-                    onClick={() => {
-                      setEditingProduct(null);
-                      setProductFormData({
-                        name: '',
-                        description: '',
-                        sku: `SKU-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
-                        category_id: selectedCategory.id.toString(),
-                        price: '',
-                        cost: '',
-                        min_stock_level: '',
-                        stock_quantity: '',
-                        image: '',
-                        is_active: true
-                      });
-                      setShowProductModal(true);
-                    }}
-                    className="bg-blue-800 text-white px-4 py-2 rounded-md hover:bg-blue-900 transition-colors"
-                  >
-                    ➕ Add Product
-                  </button>
-                )}
-                
+              <div className="flex justify-end mt-6">
                 <button
                   onClick={() => setShowProductsModal(false)}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
@@ -695,7 +816,11 @@ const Categories: React.FC = () => {
                   {editingProduct ? 'Edit Product' : 'Add New Product'}
                 </h3>
                 <button
-                  onClick={() => setShowProductModal(false)}
+                  onClick={() => {
+                    setShowProductModal(false);
+                    setSelectedImageFile(null);
+                    setImagePreview('');
+                  }}
                   className={`text-2xl font-bold ${
                     theme === 'dark' ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'
                   }`}
@@ -849,19 +974,52 @@ const Categories: React.FC = () => {
                   <label className={`block text-sm font-medium mb-1 ${
                     theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
                   }`}>
-                    Image URL
+                    Product Image
                   </label>
                   <input
-                    type="url"
-                    value={productFormData.image}
-                    onChange={(e) => setProductFormData({ ...productFormData, image: e.target.value })}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageFileChange}
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       theme === 'dark' 
-                        ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
+                        ? 'bg-gray-700 border-gray-600 text-gray-100' 
                         : 'bg-white border-gray-300 text-gray-900'
                     }`}
-                    placeholder="https://example.com/image.jpg"
                   />
+                  <p className={`text-xs mt-1 ${
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    Supported formats: JPG, PNG, GIF (Max 5MB)
+                  </p>
+                  
+                  {/* Image Preview */}
+                  {imagePreview && (
+                    <div className="mt-3">
+                      <label className={`block text-sm font-medium mb-2 ${
+                        theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                        Preview:
+                      </label>
+                      <div className="relative">
+                        <img
+                          src={imagePreview}
+                          alt="Product preview"
+                          className="w-32 h-32 object-cover rounded-lg border border-gray-300"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImagePreview('');
+                            setSelectedImageFile(null);
+                            setProductFormData({ ...productFormData, image: '' });
+                          }}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex items-center">
@@ -903,6 +1061,25 @@ const Categories: React.FC = () => {
           </div>
         </div>
       )}
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: ${theme === 'dark' ? '#374151' : '#f3f4f6'};
+            border-radius: 3px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: ${theme === 'dark' ? '#6b7280' : '#d1d5db'};
+            border-radius: 3px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: ${theme === 'dark' ? '#9ca3af' : '#9ca3af'};
+          }
+        `
+      }} />
     </div>
   );
 };

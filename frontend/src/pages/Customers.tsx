@@ -26,11 +26,10 @@ const Customers: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [formData, setFormData] = useState({
+  const [editForm, setEditForm] = useState({
     name: '',
     email: '',
     phone: '',
@@ -98,56 +97,11 @@ const Customers: React.FC = () => {
     fetchCustomers();
   }, []);
 
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const customerData = {
-        ...formData,
-        total_orders: 0,
-        total_spent: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      if (editingCustomer) {
-        // Update existing customer - preserve total_orders and total_spent
-        const updatedCustomers = customers.map(customer =>
-          customer.id === editingCustomer.id
-            ? { 
-                ...customer, 
-                ...customerData, 
-                total_orders: customer.total_orders || 0,
-                total_spent: customer.total_spent || 0,
-                updated_at: new Date().toISOString() 
-              }
-            : customer
-        );
-        setCustomers(updatedCustomers);
-        localStorage.setItem('customers', JSON.stringify(updatedCustomers));
-      } else {
-        // Create new customer
-        const newCustomer = {
-          ...customerData,
-          id: Math.max(...customers.map(c => c.id), 0) + 1
-        };
-        const updatedCustomers = [...customers, newCustomer];
-        setCustomers(updatedCustomers);
-        localStorage.setItem('customers', JSON.stringify(updatedCustomers));
-      }
-
-      setShowModal(false);
-      setEditingCustomer(null);
-      resetForm();
-    } catch {
-      setError('Failed to save customer');
-    }
-  };
 
   // Handle edit
   const handleEdit = (customer: Customer) => {
-    setEditingCustomer(customer);
-    setFormData({
+    setSelectedCustomer(customer);
+    setEditForm({
       name: customer.name,
       email: customer.email,
       phone: customer.phone,
@@ -156,7 +110,35 @@ const Customers: React.FC = () => {
       postal_code: customer.postal_code || '',
       is_active: customer.is_active
     });
-    setShowModal(true);
+    setShowEditModal(true);
+  };
+
+  // Handle edit save
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCustomer) return;
+
+    try {
+      const updatedCustomer = {
+        ...selectedCustomer,
+        ...editForm,
+        updated_at: new Date().toISOString()
+      };
+
+      const updatedCustomers = customers.map(customer =>
+        customer.id === selectedCustomer.id ? updatedCustomer : customer
+      );
+
+      setCustomers(updatedCustomers);
+      localStorage.setItem('customers', JSON.stringify(updatedCustomers));
+      setShowEditModal(false);
+      setSelectedCustomer(null);
+      
+      // Show success message
+      alert('Customer updated successfully!');
+    } catch {
+      setError('Failed to update customer');
+    }
   };
 
   // Handle delete
@@ -172,25 +154,6 @@ const Customers: React.FC = () => {
     }
   };
 
-  // Reset form
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      address: '',
-      city: '',
-      postal_code: '',
-      is_active: true
-    });
-  };
-
-  // Handle add new
-  const handleAddNew = () => {
-    setEditingCustomer(null);
-    resetForm();
-    setShowModal(true);
-  };
 
   // Filter customers based on search
   const filteredCustomers = customers.filter(customer =>
@@ -208,39 +171,60 @@ const Customers: React.FC = () => {
   }
 
   return (
-    <div className={`p-6 min-h-screen ${theme === 'dark' ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'} transition-colors duration-200`}>
-      {/* Header */}
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className={`text-3xl font-bold ${theme === 'dark' ? 'text-blue-300' : 'text-blue-900'}`}>Customer Management</h1>
-          <p className={`mt-1 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-600'}`}>Manage your customer database and relationships</p>
-        </div>
-        
-        <div className="flex justify-between items-center mb-6">
-          <button
-            onClick={handleAddNew}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-          >
-            <span className="mr-2">👤</span>
-            Add Customer
-          </button>
-          
-          {/* Search */}
-          <div className="flex-1 max-w-md ml-4">
-            <input
-              type="text"
-              placeholder="Search customers..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                theme === 'dark' 
-                  ? 'border-gray-600 bg-gray-700 text-gray-100 placeholder-gray-300' 
-                  : 'border-gray-300 bg-white text-gray-900'
-              }`}
-            />
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 to-indigo-100'}`}>
+      {/* Modern Header */}
+      <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b backdrop-blur-sm bg-opacity-95 sticky top-0 z-10`}>
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-4">
+              <div className={`p-3 rounded-xl ${theme === 'dark' ? 'bg-blue-900' : 'bg-blue-100'}`}>
+                <span className="text-2xl">👥</span>
+              </div>
+              <div>
+                <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Customer Management</h1>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Manage your customer database and relationships</p>
+              </div>
+            </div>
+            <div className={`px-4 py-2 rounded-xl ${theme === 'dark' ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-800'} font-medium`}>
+              <span className="mr-2">📊</span>
+              {filteredCustomers.length} Customers
+            </div>
           </div>
         </div>
       </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        {/* Modern Search Section */}
+        <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-xl border backdrop-blur-sm mb-6`}>
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-green-900' : 'bg-green-100'}`}>
+                  <span className="text-lg">🔍</span>
+                </div>
+                <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Search Customers</h2>
+              </div>
+              <span className={`text-sm px-3 py-1 rounded-full ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                {filteredCustomers.length} found
+              </span>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <span className={`text-lg ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>🔍</span>
+              </div>
+              <input
+                type="text"
+                placeholder="Search customers by name, email, or phone..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500'}`}
+              />
+            </div>
+          </div>
+        </div>
 
       {/* Error Message */}
       {error && (
@@ -249,51 +233,72 @@ const Customers: React.FC = () => {
         </div>
       )}
 
-      {/* Customers Table */}
-      <div className={`rounded-lg shadow overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
-              <tr>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
-                }`}>
-                  Customer
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
-                }`}>
-                  Contact
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
-                }`}>
-                  Location
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
-                }`}>
-                  Orders
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
-                }`}>
-                  Total Spent
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
-                }`}>
-                  Status
-                </th>
-                {(role === 'admin' || role === 'cashier') && (
-                  <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
+        {/* Modern Customers Table */}
+        <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-xl border backdrop-blur-sm overflow-hidden`}>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gradient-to-r from-blue-50 to-indigo-50'}`}>
+                <tr>
+                  <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${
+                    theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
                   }`}>
-                    Actions
+                    <div className="flex items-center space-x-2">
+                      <span>👤</span>
+                      <span>Customer</span>
+                    </div>
                   </th>
-                )}
-              </tr>
-            </thead>
+                  <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${
+                    theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
+                    <div className="flex items-center space-x-2">
+                      <span>📞</span>
+                      <span>Contact</span>
+                    </div>
+                  </th>
+                  <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${
+                    theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
+                    <div className="flex items-center space-x-2">
+                      <span>📍</span>
+                      <span>Location</span>
+                    </div>
+                  </th>
+                  <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${
+                    theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
+                    <div className="flex items-center space-x-2">
+                      <span>📋</span>
+                      <span>Orders</span>
+                    </div>
+                  </th>
+                  <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${
+                    theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
+                    <div className="flex items-center space-x-2">
+                      <span>💰</span>
+                      <span>Total Spent</span>
+                    </div>
+                  </th>
+                  <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${
+                    theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
+                    <div className="flex items-center space-x-2">
+                      <span>🟢</span>
+                      <span>Status</span>
+                    </div>
+                  </th>
+                  {(role === 'admin' || role === 'cashier') && (
+                    <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${
+                      theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
+                      <div className="flex items-center space-x-2">
+                        <span>⚙️</span>
+                        <span>Actions</span>
+                      </div>
+                    </th>
+                  )}
+                </tr>
+              </thead>
             <tbody className={`divide-y ${
               theme === 'dark' ? 'bg-gray-800 divide-gray-700' : 'bg-white divide-gray-200'
             }`}>
@@ -375,21 +380,21 @@ const Customers: React.FC = () => {
                             setSelectedCustomer(customer);
                             setShowDetailsModal(true);
                           }}
-                          className="text-blue-600 hover:text-blue-900"
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${theme === 'dark' ? 'bg-blue-900 text-blue-200 hover:bg-blue-800' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
                         >
-                          View
+                          👁️ View
                         </button>
                         <button
                           onClick={() => handleEdit(customer)}
-                          className="text-indigo-600 hover:text-indigo-900"
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${theme === 'dark' ? 'bg-green-900 text-green-200 hover:bg-green-800' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
                         >
-                          Edit
+                          ✏️ Edit
                         </button>
                         <button
                           onClick={() => handleDelete(customer.id)}
-                          className="text-red-600 hover:text-red-900"
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${theme === 'dark' ? 'bg-red-900 text-red-200 hover:bg-red-800' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
                         >
-                          Delete
+                          🗑️ Delete
                         </button>
                       </div>
                     </td>
@@ -401,166 +406,16 @@ const Customers: React.FC = () => {
         </div>
       </div>
 
-      {filteredCustomers.length === 0 && (
-        <div className="text-center py-12">
-          <div className="text-gray-500 dark:text-gray-400 text-lg">No customers found</div>
-          <div className="text-gray-400 dark:text-gray-500 text-sm mt-1">
-            {searchTerm ? 'Try adjusting your search terms' : 'Add your first customer to get started'}
-          </div>
-        </div>
-      )}
-
-      {/* Customer Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className={`relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md ${
-            theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
-          }`}>
-            <div className="mt-3">
-              <h3 className={`text-lg font-medium mb-4 ${
-                theme === 'dark' ? 'text-gray-100' : 'text-gray-900'
-              }`}>
-                {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
-              </h3>
-              
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className={`block text-sm font-medium ${
-                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                  }`}>Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                      theme === 'dark' 
-                        ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
-                        : 'bg-white border-gray-300 text-gray-900'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className={`block text-sm font-medium ${
-                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                  }`}>Email</label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                      theme === 'dark' 
-                        ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
-                        : 'bg-white border-gray-300 text-gray-900'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className={`block text-sm font-medium ${
-                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                  }`}>Phone</label>
-                  <input
-                    type="tel"
-                    required
-                    value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                      theme === 'dark' 
-                        ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
-                        : 'bg-white border-gray-300 text-gray-900'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className={`block text-sm font-medium ${
-                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                  }`}>Address</label>
-                  <input
-                    type="text"
-                    value={formData.address}
-                    onChange={(e) => setFormData({...formData, address: e.target.value})}
-                    className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                      theme === 'dark' 
-                        ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
-                        : 'bg-white border-gray-300 text-gray-900'
-                    }`}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className={`block text-sm font-medium ${
-                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                    }`}>City</label>
-                    <input
-                      type="text"
-                      value={formData.city}
-                      onChange={(e) => setFormData({...formData, city: e.target.value})}
-                      className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                        theme === 'dark' 
-                          ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
-                          : 'bg-white border-gray-300 text-gray-900'
-                      }`}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className={`block text-sm font-medium ${
-                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                    }`}>Postal Code</label>
-                    <input
-                      type="text"
-                      value={formData.postal_code}
-                      onChange={(e) => setFormData({...formData, postal_code: e.target.value})}
-                      className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                        theme === 'dark' 
-                          ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
-                          : 'bg-white border-gray-300 text-gray-900'
-                      }`}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_active}
-                    onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label className={`ml-2 block text-sm ${
-                    theme === 'dark' ? 'text-gray-300' : 'text-gray-900'
-                  }`}>Active Customer</label>
-                </div>
-
-                <div className="flex justify-end space-x-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className={`px-4 py-2 text-sm font-medium border rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                      theme === 'dark'
-                        ? 'text-gray-300 bg-gray-700 border-gray-600 hover:bg-gray-600 focus:ring-gray-500'
-                        : 'text-gray-700 bg-gray-100 border-gray-300 hover:bg-gray-200 focus:ring-gray-500'
-                    }`}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    {editingCustomer ? 'Update' : 'Create'}
-                  </button>
-                </div>
-              </form>
+        {filteredCustomers.length === 0 && (
+          <div className="text-center py-12">
+            <div className={`text-4xl mb-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`}>👥</div>
+            <div className={`text-lg font-medium mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>No customers found</div>
+            <div className={`text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
+              {searchTerm ? 'Try adjusting your search terms' : 'Customers will appear here when added through the Sales page'}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Customer Details Modal */}
       {showDetailsModal && selectedCustomer && (
@@ -651,6 +506,203 @@ const Customers: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Customer Modal */}
+      {showEditModal && selectedCustomer && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className={`relative top-10 mx-auto p-5 border w-11/12 max-w-2xl shadow-lg rounded-md ${
+            theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
+          }`}>
+            <div className="mt-3">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className={`text-lg font-medium ${
+                  theme === 'dark' ? 'text-blue-300' : 'text-blue-900'
+                }`}>
+                  Edit Customer - {selectedCustomer.name}
+                </h3>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className={`text-2xl font-bold ${
+                    theme === 'dark' ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  ×
+                </button>
+              </div>
+              
+              <form onSubmit={handleEditSave} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Email *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={editForm.email}
+                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Phone *
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Address
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.address}
+                      onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.city}
+                      onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Postal Code
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.postal_code}
+                      onChange={(e) => setEditForm({ ...editForm, postal_code: e.target.value })}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={editForm.is_active}
+                      onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })}
+                      className="mr-2"
+                    />
+                    <span className={`text-sm ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Active Customer
+                    </span>
+                  </label>
+                </div>
+                
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
+                    className={`px-4 py-2 text-sm font-medium rounded-md ${
+                      theme === 'dark' 
+                        ? 'text-gray-300 bg-gray-600 hover:bg-gray-500' 
+                        : 'text-gray-700 bg-gray-100 hover:bg-gray-200'
+                    }`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: ${theme === 'dark' ? '#374151' : '#f3f4f6'};
+            border-radius: 3px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: ${theme === 'dark' ? '#6b7280' : '#d1d5db'};
+            border-radius: 3px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: ${theme === 'dark' ? '#9ca3af' : '#9ca3af'};
+          }
+        `
+      }} />
     </div>
   );
 };

@@ -189,16 +189,21 @@ const Reports: React.FC = () => {
     }
   };
 
-  const StatCard: React.FC<{ title: string; value: string | number; icon: string; color: string; subtitle?: string }> = 
-    ({ title, value, icon, color, subtitle }) => (
-    <div className={`rounded-lg shadow-sm border-l-4 ${color} p-6 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
-      <div className="flex items-center">
-        <div className="flex-shrink-0">
-          <span className="text-2xl">{icon}</span>
+  const StatCard: React.FC<{ title: string; value: string | number; icon: string; color: string; subtitle?: string; gradient?: string }> = 
+    ({ title, value, icon, color, subtitle, gradient }) => (
+    <div className={`group rounded-2xl shadow-xl border backdrop-blur-sm transition-all duration-300 hover:shadow-2xl transform hover:scale-105 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className={`p-3 rounded-xl ${gradient || 'bg-blue-100'}`}>
+            <span className="text-2xl">{icon}</span>
+          </div>
+          <div className={`px-3 py-1 rounded-full text-xs font-medium ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+            Live
+          </div>
         </div>
-        <div className="ml-4">
-          <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{title}</p>
-          <p className={`text-2xl font-semibold ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>{value}</p>
+        <div>
+          <p className={`text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{title}</p>
+          <p className={`text-3xl font-bold mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{value}</p>
           {subtitle && (
             <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{subtitle}</p>
           )}
@@ -263,126 +268,162 @@ const Reports: React.FC = () => {
   }
 
   return (
-    <div className={`p-6 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'} min-h-screen`}>
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>📊 Business Reports</h1>
-            <p className={`mt-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-              Comprehensive overview of your business performance
-            </p>
-          </div>
-          <div className="mt-4 sm:mt-0 flex space-x-3">
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className={`px-4 py-2 border rounded-lg ${
-                theme === 'dark' 
-                  ? 'bg-gray-700 border-gray-600 text-white' 
-                  : 'bg-white border-gray-300 text-gray-900'
-              }`}
-            >
-              <option value="all">All Time</option>
-              <option value="today">Today</option>
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
-            </select>
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
-            >
-              <span>📊</span>
-              <span>Export Report</span>
-            </button>
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 to-indigo-100'}`}>
+      {/* Modern Header */}
+      <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b backdrop-blur-sm bg-opacity-95 sticky top-0 z-10`}>
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-4">
+              <div className={`p-3 rounded-xl ${theme === 'dark' ? 'bg-blue-900' : 'bg-blue-100'}`}>
+                <span className="text-2xl">📊</span>
+              </div>
+              <div>
+                <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Business Reports</h1>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Comprehensive overview of your business performance</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value)}
+                className={`px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
+              >
+                <option value="all">🕰️ All Time</option>
+                <option value="today">🌅 Today</option>
+                <option value="week">📅 This Week</option>
+                <option value="month">📆 This Month</option>
+              </select>
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2.5 rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 font-medium flex items-center space-x-2"
+              >
+                <span>📊</span>
+                <span>Export Report</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard
-          title="Total Sales"
-          value={`₱${stats.totalSales.toLocaleString()}`}
-          icon="💰"
-          color="border-green-500"
-          subtitle={`${stats.totalOrders} orders`}
-        />
-        <StatCard
-          title="Today's Sales"
-          value={`₱${stats.todaysSales.toLocaleString()}`}
-          icon="📈"
-          color="border-blue-500"
-        />
-        <StatCard
-          title="Average Order"
-          value={`₱${stats.averageOrderValue.toFixed(2)}`}
-          icon="🎯"
-          color="border-purple-500"
-        />
-        <StatCard
-          title="This Month"
-          value={`₱${stats.thisMonthSales.toLocaleString()}`}
-          icon="📅"
-          color="border-orange-500"
-        />
-      </div>
+      <div className="max-w-7xl mx-auto px-6 py-6">
 
-      {/* Report Sections */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Top Selling Products */}
-        <div className={`rounded-lg shadow-sm p-6 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
-          <h3 className={`text-lg font-semibold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-            🏆 Top Selling Products
-          </h3>
-          <div className="space-y-3">
-            {stats.topSellingProducts.length > 0 ? (
-              stats.topSellingProducts.map((product, index) => (
-                <div key={index} className={`flex justify-between items-center p-3 rounded ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                  <div>
-                    <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{product.name}</p>
-                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {product.quantity} units sold
-                    </p>
-                  </div>
-                  <p className={`font-semibold ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
-                    ₱{product.revenue.toLocaleString()}
-                  </p>
+        {/* Modern Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <StatCard
+            title="Total Sales"
+            value={`₱${stats.totalSales.toLocaleString()}`}
+            icon="💰"
+            color="border-green-500"
+            subtitle={`${stats.totalOrders} orders`}
+            gradient={theme === 'dark' ? 'bg-green-900' : 'bg-gradient-to-br from-green-100 to-emerald-100'}
+          />
+          <StatCard
+            title="Today's Sales"
+            value={`₱${stats.todaysSales.toLocaleString()}`}
+            icon="📈"
+            color="border-blue-500"
+            gradient={theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-br from-blue-100 to-indigo-100'}
+          />
+          <StatCard
+            title="Average Order"
+            value={`₱${stats.averageOrderValue.toFixed(2)}`}
+            icon="🎯"
+            color="border-purple-500"
+            gradient={theme === 'dark' ? 'bg-purple-900' : 'bg-gradient-to-br from-purple-100 to-violet-100'}
+          />
+          <StatCard
+            title="This Month"
+            value={`₱${stats.thisMonthSales.toLocaleString()}`}
+            icon="📅"
+            color="border-orange-500"
+            gradient={theme === 'dark' ? 'bg-orange-900' : 'bg-gradient-to-br from-orange-100 to-red-100'}
+          />
+        </div>
+
+        {/* Modern Report Sections */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Modern Top Selling Products */}
+          <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-xl border backdrop-blur-sm`}>
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-3">
+                <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-yellow-900' : 'bg-yellow-100'}`}>
+                  <span className="text-lg">🏆</span>
                 </div>
-              ))
-            ) : (
-              <p className={`text-center py-8 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                No sales data available
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Sales by Category */}
-        <div className={`rounded-lg shadow-sm p-6 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
-          <h3 className={`text-lg font-semibold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-            📊 Sales by Category
-          </h3>
-          <div className="space-y-3">
-            {stats.salesByCategory.length > 0 ? (
-              stats.salesByCategory.map((category, index) => (
-                <div key={index} className={`flex justify-between items-center p-3 rounded ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                  <div>
-                    <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{category.category}</p>
+                <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Top Selling Products</h3>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="space-y-3">
+                {stats.topSellingProducts.length > 0 ? (
+                  stats.topSellingProducts.map((product, index) => (
+                    <div key={index} className={`flex justify-between items-center p-4 rounded-xl border transition-all duration-200 hover:shadow-md ${theme === 'dark' ? 'bg-gray-700 border-gray-600 hover:bg-gray-650' : 'bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-100 hover:from-yellow-100 hover:to-orange-100'}`}>
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${theme === 'dark' ? 'bg-yellow-900 text-yellow-200' : 'bg-yellow-200 text-yellow-800'}`}>
+                          #{index + 1}
+                        </div>
+                        <div>
+                          <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{product.name}</p>
+                          <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                            📦 {product.quantity} units sold
+                          </p>
+                        </div>
+                      </div>
+                      <p className={`font-semibold ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
+                        ₱{product.revenue.toLocaleString()}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <div className={`text-4xl mb-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`}>🏆</div>
+                    <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>No sales data available</p>
                   </div>
-                  <p className={`font-semibold ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
-                    ₱{category.revenue.toLocaleString()}
-                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Modern Sales by Category */}
+          <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-xl border backdrop-blur-sm`}>
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-3">
+                <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-blue-900' : 'bg-blue-100'}`}>
+                  <span className="text-lg">📊</span>
                 </div>
-              ))
-            ) : (
-              <p className={`text-center py-8 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                No category data available
-              </p>
-            )}
+                <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Sales by Category</h3>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="space-y-3">
+                {stats.salesByCategory.length > 0 ? (
+                  stats.salesByCategory.map((category, index) => (
+                    <div key={index} className={`flex justify-between items-center p-4 rounded-xl border transition-all duration-200 hover:shadow-md ${theme === 'dark' ? 'bg-gray-700 border-gray-600 hover:bg-gray-650' : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100 hover:from-blue-100 hover:to-indigo-100'}`}>
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${theme === 'dark' ? 'bg-blue-900 text-blue-200' : 'bg-blue-200 text-blue-800'}`}>
+                          📁
+                        </div>
+                        <div>
+                          <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{category.category}</p>
+                          <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                            📊 {category.orders} orders
+                          </p>
+                        </div>
+                      </div>
+                      <p className={`font-semibold ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
+                        ₱{category.revenue.toLocaleString()}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <div className={`text-4xl mb-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`}>📊</div>
+                    <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>No category data available</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
       {/* Recent Activity & Low Stock */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -518,6 +559,26 @@ const Reports: React.FC = () => {
           </div>
         </div>
       )}
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: ${theme === 'dark' ? '#374151' : '#f3f4f6'};
+            border-radius: 3px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: ${theme === 'dark' ? '#6b7280' : '#d1d5db'};
+            border-radius: 3px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: ${theme === 'dark' ? '#9ca3af' : '#9ca3af'};
+          }
+        `
+      }} />
+      </div>
     </div>
   );
 };

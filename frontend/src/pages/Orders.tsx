@@ -297,132 +297,96 @@ const Orders: React.FC = () => {
 
   // Print receipt function
   const printReceipt = (order: Order) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
     const receiptHTML = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Receipt - ${order.order_number}</title>
+        <title>Receipt - Order #${order.order_number}</title>
         <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            max-width: 320px; 
+            font-family: 'Courier New', monospace; 
+            max-width: 300px; 
             margin: 0 auto; 
-            padding: 24px; 
-            background: #fff;
-            color: #333;
+            padding: 20px; 
             line-height: 1.4;
+            font-size: 12px;
           }
           .header { 
             text-align: center; 
-            padding-bottom: 20px; 
-            margin-bottom: 24px; 
-            border-bottom: 1px solid #e0e0e0;
+            border-bottom: 2px dashed #000; 
+            padding-bottom: 10px; 
+            margin-bottom: 15px; 
           }
           .header h2 { 
-            font-size: 24px; 
-            font-weight: 700; 
+            margin: 0; 
+            font-size: 18px; 
             color: #2563eb; 
-            margin-bottom: 4px; 
+            font-weight: bold; 
           }
           .header p { 
-            font-size: 12px; 
-            color: #6b7280; 
-            font-weight: 500; 
+            margin: 2px 0; 
+            font-size: 10px; 
           }
           .order-info { 
-            background: #f8fafc; 
-            padding: 16px; 
-            border-radius: 8px; 
-            margin-bottom: 24px; 
+            margin-bottom: 15px; 
+            font-size: 11px; 
           }
-          .order-info p { 
-            margin-bottom: 6px; 
-            font-size: 14px; 
-          }
-          .order-info strong { 
-            color: #374151; 
-            font-weight: 600; 
+          .order-info div { 
+            display: flex; 
+            justify-content: space-between; 
+            margin: 3px 0; 
           }
           .items { 
-            margin-bottom: 24px; 
-          }
-          .items h3 { 
-            font-size: 16px; 
-            font-weight: 600; 
-            color: #374151; 
-            margin-bottom: 16px; 
-            padding-bottom: 8px; 
-            border-bottom: 1px solid #e5e7eb; 
+            border-top: 1px dashed #000; 
+            border-bottom: 1px dashed #000; 
+            padding: 10px 0; 
+            margin: 15px 0; 
           }
           .item { 
             display: flex; 
             justify-content: space-between; 
-            align-items: flex-start; 
-            padding: 12px 0; 
-            border-bottom: 1px solid #f3f4f6; 
-          }
-          .item:last-child { 
-            border-bottom: none; 
-          }
-          .item-details { 
-            flex: 1; 
+            margin: 5px 0; 
+            font-size: 11px; 
           }
           .item-name { 
-            font-weight: 600; 
-            font-size: 15px; 
-            color: #111827; 
-            margin-bottom: 4px; 
+            flex: 1; 
+            margin-right: 10px; 
           }
-          .item-quantity { 
-            font-size: 12px; 
-            color: #6b7280; 
-            font-weight: 500; 
+          .item-qty { 
+            margin-right: 10px; 
+            min-width: 30px; 
+            text-align: center; 
           }
           .item-price { 
-            font-weight: 600; 
-            font-size: 15px; 
-            color: #111827; 
-            margin-left: 16px; 
+            min-width: 60px; 
+            text-align: right; 
+            font-weight: bold; 
           }
           .totals { 
-            background: #f8fafc; 
-            padding: 20px; 
-            border-radius: 8px; 
-            margin-bottom: 24px; 
+            margin: 15px 0; 
+            font-size: 11px; 
           }
-          .total-line { 
+          .totals div { 
             display: flex; 
             justify-content: space-between; 
-            margin-bottom: 8px; 
-            font-size: 14px; 
+            margin: 3px 0; 
           }
-          .total-line:last-child { 
-            margin-bottom: 0; 
-          }
-          .final-total { 
-            font-weight: 700; 
-            font-size: 18px; 
-            color: #111827; 
-            padding-top: 12px; 
-            margin-top: 12px; 
-            border-top: 1px solid #d1d5db; 
+          .total-line { 
+            font-weight: bold; 
+            font-size: 13px; 
+            border-top: 1px solid #000; 
+            padding-top: 5px; 
           }
           .footer { 
             text-align: center; 
-            padding-top: 20px; 
-            border-top: 1px solid #e5e7eb; 
-          }
-          .footer p { 
-            font-size: 13px; 
-            color: #6b7280; 
-            margin-bottom: 4px; 
+            margin-top: 20px; 
+            border-top: 2px dashed #000; 
+            padding-top: 10px; 
+            font-size: 10px; 
           }
           .footer .thank-you { 
-            font-weight: 600; 
+            font-weight: bold; 
+            margin: 10px 0; 
             color: #2563eb; 
             font-size: 14px; 
           }
@@ -435,74 +399,80 @@ const Orders: React.FC = () => {
       </head>
       <body>
         <div class="header">
-          <h2>FilHub Enterprise</h2>
-          <p>POS & Inventory Management System</p>
+          <h2>FILHUB ENTERPRISE</h2>
+          <p>📍 Your Business Address</p>
+          <p>📞 Contact: +63 XXX XXX XXXX</p>
+          <p>📧 Email: info@filhub.com</p>
         </div>
         
         <div class="order-info">
-          <p><strong>Order #:</strong> ${order.order_number}</p>
-          <p><strong>Date:</strong> ${new Date(order.created_at).toLocaleDateString()}</p>
-          <p><strong>Customer:</strong> ${order.customer?.name || 'Walk-in Customer'}</p>
-          ${order.customer?.phone ? `<p><strong>Phone:</strong> ${order.customer.phone}</p>` : ''}
+          <div><strong>Order #:</strong> <span>${order.order_number}</span></div>
+          <div><strong>Date:</strong> <span>${new Date(order.created_at).toLocaleDateString()}</span></div>
+          <div><strong>Time:</strong> <span>${new Date(order.created_at).toLocaleTimeString()}</span></div>
+          <div><strong>Status:</strong> <span>${order.order_status.toUpperCase()}</span></div>
+          ${order.customer_name ? `<div><strong>Customer:</strong> <span>${order.customer_name}</span></div>` : ''}
         </div>
-
+        
         <div class="items">
-          <h3>Items:</h3>
-          ${(order as any).items ? (order as any).items.map((item: any) => `
+          <div style="display: flex; justify-content: space-between; font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 8px;">
+            <span>ITEM</span>
+            <span>QTY</span>
+            <span>PRICE</span>
+          </div>
+          ${order.items?.map(item => `
             <div class="item">
-              <div class="item-details">
-                <div class="item-name">${item.name || item.product_name || 'Product'}</div>
-                <div class="item-quantity">Quantity: ${item.quantity}</div>
-              </div>
-              <span class="item-price">₱${(item.total || item.price * item.quantity).toFixed(2)}</span>
+              <span class="item-name">${item.name}</span>
+              <span class="item-qty">${item.quantity}x</span>
+              <span class="item-price">₱${(item.price * item.quantity).toFixed(2)}</span>
             </div>
-          `).join('') : '<p>No items available</p>'}
+          `).join('') || ''}
         </div>
-
+        
         <div class="totals">
-          <div class="total-line">
-            <span>Subtotal:</span>
-            <span>₱${order.subtotal.toFixed(2)}</span>
-          </div>
-          ${order.discount_amount > 0 ? `
-            <div class="total-line">
-              <span>Discount:</span>
-              <span>-₱${order.discount_amount.toFixed(2)}</span>
-            </div>
-          ` : ''}
-          <div class="total-line final-total">
-            <span>Total:</span>
-            <span>₱${order.total_amount.toFixed(2)}</span>
-          </div>
-          <div class="total-line">
-            <span>Paid:</span>
-            <span>₱${order.paid_amount.toFixed(2)}</span>
-          </div>
-          ${order.due_amount > 0 ? `
-            <div class="total-line">
-              <span>Due:</span>
-              <span>₱${order.due_amount.toFixed(2)}</span>
-            </div>
-          ` : ''}
-          ${order.paid_amount > order.total_amount ? `
-            <div class="total-line">
-              <span>Change:</span>
-              <span>₱${(order.paid_amount - order.total_amount).toFixed(2)}</span>
-            </div>
-          ` : ''}
+          <div><strong>Subtotal:</strong> <span>₱${order.total_amount.toFixed(2)}</span></div>
+          ${order.discount_amount ? `<div><strong>Discount:</strong> <span>-₱${order.discount_amount.toFixed(2)}</span></div>` : ''}
+          ${order.tax_amount ? `<div><strong>Tax:</strong> <span>₱${order.tax_amount.toFixed(2)}</span></div>` : ''}
+          <div class="total-line"><strong>TOTAL:</strong> <span>₱${order.total_amount.toFixed(2)}</span></div>
+          <div><strong>Paid:</strong> <span>₱${order.paid_amount.toFixed(2)}</span></div>
+          ${order.paid_amount > order.total_amount ? `<div><strong>Change:</strong> <span>₱${(order.paid_amount - order.total_amount).toFixed(2)}</span></div>` : ''}
+          ${order.paid_amount < order.total_amount ? `<div style="color: red;"><strong>Balance:</strong> <span>₱${(order.total_amount - order.paid_amount).toFixed(2)}</span></div>` : ''}
         </div>
-
+        
         <div class="footer">
-          <p class="thank-you">Thank you for your business!</p>
-          <p>${new Date().toLocaleString()}</p>
+          <div class="thank-you">THANK YOU FOR YOUR BUSINESS!</div>
+          <p>Please keep this receipt for your records</p>
+          <p>Visit us again soon! 😊</p>
+          <p style="margin-top: 15px; font-size: 9px;">
+            Powered by FilHub Enterprise System<br>
+            ${new Date().toLocaleString()}
+          </p>
         </div>
       </body>
       </html>
     `;
 
-    printWindow.document.write(receiptHTML);
-    printWindow.document.close();
-    printWindow.print();
+    // Create a temporary iframe for printing instead of opening new tab
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.top = '-10000px';
+    iframe.style.left = '-10000px';
+    document.body.appendChild(iframe);
+    
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (iframeDoc) {
+      iframeDoc.open();
+      iframeDoc.write(receiptHTML);
+      iframeDoc.close();
+      
+      // Wait for content to load then print
+      iframe.onload = () => {
+        iframe.contentWindow?.print();
+        // Remove iframe after printing
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1000);
+      };
+    }
   };
 
   // Export orders to CSV
@@ -695,96 +665,111 @@ const Orders: React.FC = () => {
   }
 
   return (
-    <div className={`p-6 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className={`text-3xl font-bold ${theme === 'dark' ? 'text-blue-400' : 'text-blue-900'}`}>Order Management</h1>
-          <p className={`mt-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Manage customer orders and track payments</p>
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 to-indigo-100'}`}>
+      {/* Modern Header */}
+      <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b backdrop-blur-sm bg-opacity-95 sticky top-0 z-10`}>
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-4">
+              <div className={`p-3 rounded-xl ${theme === 'dark' ? 'bg-blue-900' : 'bg-blue-100'}`}>
+                <span className="text-2xl">📋</span>
+              </div>
+              <div>
+                <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Order Management</h1>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Manage customer orders and track payments</p>
+              </div>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={exportToCSV}
+                className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-2.5 rounded-xl hover:from-yellow-600 hover:to-orange-600 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 font-medium flex items-center"
+              >
+                <span className="mr-2">📊</span>
+                Export CSV
+              </button>
+              {role === 'admin' && (
+                <button
+                  onClick={() => setShowPrintModal(true)}
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2.5 rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 font-medium flex items-center space-x-2"
+                >
+                  <span>🖨️</span>
+                  <span>Print Receipt</span>
+                </button>
+              )}
+            </div>
+            </div>
+          </div>
         </div>
-        <div className="flex space-x-3">
-          <button
-            onClick={exportToCSV}
-            className="bg-yellow-500 text-blue-900 font-medium px-4 py-2 rounded-lg hover:bg-yellow-400 transition-colors flex items-center"
-          >
-            <span className="mr-2">📊</span>
-            Export CSV
-          </button>
-          {role === 'admin' && (
-            <button
-              onClick={() => setShowPrintModal(true)}
-              className="bg-blue-800 text-white px-4 py-2 rounded-lg hover:bg-blue-900 transition-colors flex items-center space-x-2"
-            >
-              <span>🖨️</span>
-              <span>Print Receipt</span>
-            </button>
-          )}
-        </div>
-      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-6">
 
 
-      {/* Filters */}
-      <div className={`p-4 rounded-lg shadow mb-6 border-l-4 border-blue-800 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-          <div>
-            <input
-              type="text"
-              placeholder="Search orders..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900'}`}
-            />
+        {/* Modern Filters */}
+        <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-xl border backdrop-blur-sm mb-6`}>
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-green-900' : 'bg-green-100'}`}>
+                  <span className="text-lg">🔍</span>
+                </div>
+                <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Filter Orders</h2>
+              </div>
+              <span className={`text-sm px-3 py-1 rounded-full ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                {orders.length} orders
+              </span>
+            </div>
           </div>
-          <div>
-            <select
-              value={paymentStatusFilter}
-              onChange={(e) => setPaymentStatusFilter(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900'}`}
-            >
-              <option value="">All Payment Status</option>
-              <option value="pending">Pending</option>
-              <option value="partial">Partial</option>
-              <option value="paid">Paid</option>
-            </select>
-          </div>
-          <div>
-            <select
-              value={orderStatusFilter}
-              onChange={(e) => setOrderStatusFilter(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900'}`}
-            >
-              <option value="">All Order Status</option>
-              <option value="pending">Pending</option>
-              <option value="processing">Processing</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-          <div>
-            <input
-              type="date"
-              placeholder="From Date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900'}`}
-            />
-          </div>
-          <div>
-            <input
-              type="date"
-              placeholder="To Date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-800 focus:border-transparent ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900'}`}
-            />
-          </div>
-          <div>
-            <button
-              onClick={clearFilters}
-              className={`w-full px-3 py-2 rounded-lg transition-colors ${theme === 'dark' ? 'bg-gray-600 text-white hover:bg-gray-500' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-            >
-              Clear Filters
-            </button>
+          
+          <div className="p-6">
+            <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center">
+              <div className="flex-1 lg:max-w-md">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <span className={`text-lg ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>🔍</span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search orders by ID, customer, or status..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500'}`}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-4 lg:gap-3">
+                <div>
+                  <select
+                    value={paymentStatusFilter}
+                    onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
+                  >
+                    <option value="">💳 All Payment Status</option>
+                    <option value="pending">⏳ Pending</option>
+                    <option value="partial">🔄 Partial</option>
+                    <option value="paid">✅ Paid</option>
+                  </select>
+                </div>
+                <div>
+                  <select
+                    value={orderStatusFilter}
+                    onChange={(e) => setOrderStatusFilter(e.target.value)}
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
+                  >
+                    <option value="">📦 All Order Status</option>
+                    <option value="pending">⏳ Pending</option>
+                    <option value="processing">🔄 Processing</option>
+                    <option value="completed">✅ Completed</option>
+                    <option value="cancelled">❌ Cancelled</option>
+                  </select>
+                </div>
+                <div>
+                  <button
+                    onClick={clearFilters}
+                    className={`w-full px-4 py-3 rounded-xl transition-all duration-200 font-medium ${theme === 'dark' ? 'bg-gray-600 text-white hover:bg-gray-500 hover:shadow-lg' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-md'}`}
+                  >
+                    🗑️ Clear Filters
+                  </button>
+                </div>
           </div>
         </div>
       </div>
@@ -803,33 +788,65 @@ const Orders: React.FC = () => {
         </div>
       )}
 
-      {/* Orders Table */}
-      <div className={`rounded-lg shadow overflow-hidden border-l-4 border-yellow-500 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-blue-50'}>
-              <tr>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
-                  Order Details
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
-                  Customer
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
-                  Amount
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
-                  Payment Status
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
-                  Order Status
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
-                  Date
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
-                  Actions
-                </th>
+        {/* Modern Orders Table */}
+        <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-xl border backdrop-blur-sm`}>
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-purple-900' : 'bg-purple-100'}`}>
+                  <span className="text-lg">📋</span>
+                </div>
+                <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Orders</h2>
+              </div>
+            </div>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gradient-to-r from-blue-50 to-indigo-50'}`}>
+                <tr>
+                  <th className={`px-6 py-4 text-left text-sm font-semibold ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                    <div className="flex items-center space-x-2">
+                      <span>📋</span>
+                      <span>Order Details</span>
+                    </div>
+                  </th>
+                  <th className={`px-6 py-4 text-left text-sm font-semibold ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                    <div className="flex items-center space-x-2">
+                      <span>👤</span>
+                      <span>Customer</span>
+                    </div>
+                  </th>
+                  <th className={`px-6 py-4 text-left text-sm font-semibold ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                    <div className="flex items-center space-x-2">
+                      <span>💰</span>
+                      <span>Amount</span>
+                    </div>
+                  </th>
+                  <th className={`px-6 py-4 text-left text-sm font-semibold ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                    <div className="flex items-center space-x-2">
+                      <span>💳</span>
+                      <span>Payment</span>
+                    </div>
+                  </th>
+                  <th className={`px-6 py-4 text-left text-sm font-semibold ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                    <div className="flex items-center space-x-2">
+                      <span>📦</span>
+                      <span>Status</span>
+                    </div>
+                  </th>
+                  <th className={`px-6 py-4 text-left text-sm font-semibold ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                    <div className="flex items-center space-x-2">
+                      <span>📅</span>
+                      <span>Date</span>
+                    </div>
+                  </th>
+                  <th className={`px-6 py-4 text-left text-sm font-semibold ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                    <div className="flex items-center space-x-2">
+                      <span>⚙️</span>
+                      <span>Actions</span>
+                    </div>
+                  </th>
               </tr>
             </thead>
             <tbody className={`divide-y ${theme === 'dark' ? 'bg-gray-800 divide-gray-700' : 'bg-white divide-gray-200'}`}>
@@ -965,6 +982,7 @@ const Orders: React.FC = () => {
             </tbody>
           </table>
         </div>
+      </div>
 
         {orders.length === 0 && !loading && (
           <div className="text-center py-12">
@@ -1385,6 +1403,26 @@ const Orders: React.FC = () => {
           </div>
         </div>
       )}
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: ${theme === 'dark' ? '#374151' : '#f3f4f6'};
+            border-radius: 3px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: ${theme === 'dark' ? '#6b7280' : '#d1d5db'};
+            border-radius: 3px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: ${theme === 'dark' ? '#9ca3af' : '#9ca3af'};
+          }
+        `
+      }} />
+      </div>
     </div>
   );
 };

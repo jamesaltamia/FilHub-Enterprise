@@ -42,13 +42,13 @@ const TopNavbar: React.FC<TopNavbarProps> = ({ isSidebarOpen, toggleSidebar }) =
   };
 
   return (
-    <nav className="bg-blue-600 shadow-lg border-b border-blue-700 h-16 flex items-center justify-between px-4 relative z-50">
+    <nav className="bg-blue-900 shadow-lg border-b border-blue-800 h-16 flex items-center justify-between px-4 relative z-50">
       {/* Left Section - Hamburger Menu and Logo */}
       <div className="flex items-center space-x-4">
         {/* Hamburger Menu Button */}
         <button
           onClick={toggleSidebar}
-          className="p-2 rounded-md text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="p-2 rounded-md text-white hover:bg-blue-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300"
           aria-label="Toggle sidebar"
         >
           <svg
@@ -101,7 +101,7 @@ const TopNavbar: React.FC<TopNavbarProps> = ({ isSidebarOpen, toggleSidebar }) =
 
         {/* User Profile Dropdown */}
         <div className="relative group">
-          <button className="flex items-center space-x-2 text-white hover:bg-blue-700 px-3 py-2 rounded-md transition-colors">
+          <button className="flex items-center space-x-2 text-white hover:bg-blue-800 px-3 py-2 rounded-md transition-colors">
             <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-blue-900 font-semibold text-sm">
               {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
             </div>
