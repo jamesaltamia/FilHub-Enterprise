@@ -7,7 +7,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 // Create axios instance
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL, 
-  timeout: 10000,
+  timeout: 3000, // Reduced timeout to 3 seconds for faster fallback
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -36,11 +36,20 @@ api.interceptors.response.use(
   },
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      // Unauthorized - clear token and redirect to login
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user');
-      if (location.pathname !== '/login') {
-        window.location.href = '/login';
+      // Only logout for authentication endpoints, not for general API failures
+      const url = error.config?.url || '';
+      const isAuthEndpoint = url.includes('/auth/') || url.includes('/login') || url.includes('/logout');
+      
+      if (isAuthEndpoint) {
+        // Unauthorized on auth endpoints - clear token and redirect to login
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user');
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      } else {
+        // For other endpoints, just log the error but don't logout
+        console.log('API request failed (expected in demo mode):', url);
       }
     }
     return Promise.reject(error);

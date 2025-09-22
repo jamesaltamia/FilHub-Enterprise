@@ -184,8 +184,8 @@ const Categories: React.FC = () => {
           await categoriesAPI.update(editingCategory.id, formData);
           updateSuccess = true;
           console.log('Category updated via API');
-        } catch (apiError) {
-          console.log('API update failed, using localStorage fallback:', apiError);
+        } catch {
+          console.log('API update failed (expected in demo mode), using localStorage fallback');
           
           // Fallback to localStorage for demo mode
           const storedCategories = localStorage.getItem('categories');
@@ -214,8 +214,8 @@ const Categories: React.FC = () => {
           await categoriesAPI.create(formData);
           createSuccess = true;
           console.log('Category created via API');
-        } catch (apiError) {
-          console.log('API create failed, using localStorage fallback:', apiError);
+        } catch {
+          console.log('API create failed (expected in demo mode), using localStorage fallback');
           
           // Fallback to localStorage for demo mode
           const storedCategories = localStorage.getItem('categories');
@@ -284,8 +284,8 @@ const Categories: React.FC = () => {
         try {
           await categoriesAPI.delete(id);
           console.log('Category deleted via API');
-        } catch (apiError) {
-          console.log('API delete failed, using localStorage fallback:', apiError);
+        } catch {
+          console.log('API delete failed (expected in demo mode), using localStorage fallback');
           
           // Fallback to localStorage for demo mode
           const storedCategories = localStorage.getItem('categories');

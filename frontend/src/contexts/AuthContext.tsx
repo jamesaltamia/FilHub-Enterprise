@@ -79,13 +79,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string) => {
     try {
       console.log("Attempting login for:", email);
-      console.log("Password length:", password.length);
-      console.log("Password characters:", password.split('').map(c => c.charCodeAt(0)));
 
-      // First try API login
+      // First try API login with timeout
       try {
+        console.log("Trying API login...");
         const response = await authAPI.login(email, password);
-        console.log("API Login response:", response);
+        console.log("API Login successful:", response);
 
         if (response.success && response.data) {
           const loginData = response.data;
@@ -126,12 +125,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.log("API Login successful, user state updated");
           return;
         }
-      } catch (apiError) {
-        console.log("API login failed, trying localStorage fallback:", apiError);
+      } catch {
+        console.log("API login failed (expected in demo mode), using localStorage fallback");
       }
 
       // Fallback: Check localStorage users (demo mode)
-      console.log("Trying localStorage fallback authentication...");
+      console.log("Using localStorage authentication...");
       const localUsers = localStorage.getItem('filhub_users');
       console.log("localStorage users data:", localUsers);
       console.log("All localStorage keys:", Object.keys(localStorage));

@@ -101,29 +101,35 @@ const Sales: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // Get products from localStorage (which has updated stock levels)
+      // Always prioritize localStorage data for Sales page
       const storedProducts = JSON.parse(localStorage.getItem('products') || '[]');
       if (storedProducts.length > 0) {
         // Only show active products with stock
         const activeProducts = storedProducts.filter((product: Product) => product.is_active && product.stock_quantity > 0);
         setProducts(activeProducts);
+        console.log('Sales: Loaded products from localStorage');
       } else {
-        // Fallback to API if no localStorage data
-        const response = await productsAPI.getAll({ per_page: 100 });
-        if (response && response.data) {
-          const productsData = Array.isArray(response.data.data) ? response.data.data : (Array.isArray(response.data) ? response.data : []);
-          const activeProducts = productsData.filter((product: Product) => product.is_active && product.stock_quantity > 0);
-          setProducts(activeProducts);
-        } else {
+        // Try API as fallback, but don't let it cause logout
+        try {
+          console.log('Sales: Trying API fallback for products');
+          const response = await productsAPI.getAll({ per_page: 100 });
+          if (response && response.data) {
+            const productsData = Array.isArray(response.data.data) ? response.data.data : (Array.isArray(response.data) ? response.data : []);
+            const activeProducts = productsData.filter((product: Product) => product.is_active && product.stock_quantity > 0);
+            setProducts(activeProducts);
+            console.log('Sales: Loaded products from API');
+          } else {
+            setProducts([]);
+          }
+        } catch (apiError) {
+          console.log('Sales: API failed (expected in demo mode), using empty product list');
           setProducts([]);
+          // Don't show error for API failures in demo mode
         }
       }
     } catch (err: any) {
-      if (err?.response?.status !== 401) {
-        setError('Failed to fetch products. Please check your connection.');
-      }
-      setProducts([]);
       console.error('Error fetching products:', err);
+      setProducts([]);
     } finally {
       setLoading(false);
     }
