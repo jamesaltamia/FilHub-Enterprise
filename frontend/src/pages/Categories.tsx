@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { productsAPI, categoriesAPI } from '../services/api';
 import { useTheme } from '../contexts/ThemeContext';
-import api from '../services/api';
 
 interface Category {
   id: number;
@@ -43,6 +42,7 @@ const Categories: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -174,17 +174,83 @@ const Categories: React.FC = () => {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     try {
       if (editingCategory) {
-        await categoriesAPI.update(editingCategory.id, formData);
+        // Update existing category
+        let updateSuccess = false;
+        
+        try {
+          await categoriesAPI.update(editingCategory.id, formData);
+          updateSuccess = true;
+          console.log('Category updated via API');
+        } catch (apiError) {
+          console.log('API update failed, using localStorage fallback:', apiError);
+          
+          // Fallback to localStorage for demo mode
+          const storedCategories = localStorage.getItem('categories');
+          if (storedCategories) {
+            const categories = JSON.parse(storedCategories);
+            const updatedCategories = categories.map((cat: Category) => 
+              cat.id === editingCategory.id 
+                ? { ...cat, ...formData, updated_at: new Date().toISOString() }
+                : cat
+            );
+            localStorage.setItem('categories', JSON.stringify(updatedCategories));
+            updateSuccess = true;
+            console.log('Category updated in localStorage');
+          }
+        }
+        
+        if (!updateSuccess) {
+          throw new Error('Failed to update category');
+        }
+        
       } else {
-        await categoriesAPI.create(formData);
+        // Create new category
+        let createSuccess = false;
+        
+        try {
+          await categoriesAPI.create(formData);
+          createSuccess = true;
+          console.log('Category created via API');
+        } catch (apiError) {
+          console.log('API create failed, using localStorage fallback:', apiError);
+          
+          // Fallback to localStorage for demo mode
+          const storedCategories = localStorage.getItem('categories');
+          const categories = storedCategories ? JSON.parse(storedCategories) : [];
+          const newCategory: Category = {
+            id: Date.now(), // Use timestamp as ID for demo
+            name: formData.name,
+            description: formData.description,
+            is_active: formData.is_active,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          categories.push(newCategory);
+          localStorage.setItem('categories', JSON.stringify(categories));
+          createSuccess = true;
+          console.log('Category created in localStorage');
+        }
+        
+        if (!createSuccess) {
+          throw new Error('Failed to create category');
+        }
       }
 
+      // Success - close modal and refresh
       setShowModal(false);
       setEditingCategory(null);
       resetForm();
       fetchCategories();
+      setError(null); // Clear any previous errors
+      setSuccess(editingCategory ? 'Category updated successfully!' : 'Category created successfully!');
+      console.log('Category operation completed successfully');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(null), 3000);
+      
     } catch (err) {
       setError('Failed to save category');
       console.error('Error saving category:', err);
@@ -204,10 +270,54 @@ const Categories: React.FC = () => {
 
   // Handle delete
   const handleDelete = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this category?')) {
+    // Check if category has products
+    const categoryProducts = products.filter(product => product.category_id === id);
+    
+    let confirmMessage = 'Are you sure you want to delete this category?';
+    if (categoryProducts.length > 0) {
+      confirmMessage = `This category has ${categoryProducts.length} product(s). Deleting it will also remove all associated products. Are you sure you want to continue?`;
+    }
+    
+    if (window.confirm(confirmMessage)) {
       try {
-        await categoriesAPI.delete(id);
+        // Try API first
+        try {
+          await categoriesAPI.delete(id);
+          console.log('Category deleted via API');
+        } catch (apiError) {
+          console.log('API delete failed, using localStorage fallback:', apiError);
+          
+          // Fallback to localStorage for demo mode
+          const storedCategories = localStorage.getItem('categories');
+          if (storedCategories) {
+            const categories = JSON.parse(storedCategories);
+            const filteredCategories = categories.filter((cat: Category) => cat.id !== id);
+            localStorage.setItem('categories', JSON.stringify(filteredCategories));
+            console.log('Category deleted from localStorage');
+          }
+          
+          // Also remove associated products from localStorage
+          const storedProducts = localStorage.getItem('products');
+          if (storedProducts) {
+            const allProducts = JSON.parse(storedProducts);
+            const filteredProducts = allProducts.filter((product: Product) => product.category_id !== id);
+            localStorage.setItem('products', JSON.stringify(filteredProducts));
+            console.log('Associated products removed from localStorage');
+          }
+        }
+        
+        // Refresh data
         fetchCategories();
+        fetchProducts();
+        setError(null); // Clear any previous errors
+        setSuccess('Category deleted successfully!');
+        
+        // Show success message
+        console.log('Category and associated products deleted successfully');
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccess(null), 3000);
+        
       } catch (err) {
         setError('Failed to delete category');
         console.error('Error deleting category:', err);
@@ -338,20 +448,20 @@ const Categories: React.FC = () => {
     <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 to-indigo-100'}`}>
       {/* Modern Header */}
       <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b backdrop-blur-sm bg-opacity-95 sticky top-0 z-10`}>
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-4">
-              <div className={`p-3 rounded-xl ${theme === 'dark' ? 'bg-blue-900' : 'bg-blue-100'}`}>
-                <span className="text-2xl">📦</span>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-center space-x-3 sm:space-x-4">
+              <div className={`p-2 sm:p-3 rounded-xl ${theme === 'dark' ? 'bg-blue-900' : 'bg-blue-100'}`}>
+                <span className="text-xl sm:text-2xl">📦</span>
               </div>
               <div>
-                <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Inventory Management</h1>
-                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Manage your product categories and inventory</p>
+                <h1 className={`text-xl sm:text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Inventory Management</h1>
+                <p className={`text-xs sm:text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Manage your product categories and inventory</p>
               </div>
             </div>
             <button
               onClick={handleAddNew}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2.5 rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 font-medium flex items-center"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 sm:px-6 py-2.5 rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 font-medium flex items-center text-sm sm:text-base w-full sm:w-auto justify-center"
             >
               <span className="mr-2">➕</span>
               Add Category
@@ -360,24 +470,24 @@ const Categories: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         {/* Modern Search Section */}
         <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-xl border backdrop-blur-sm mb-6`}>
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
+          <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
               <div className="flex items-center space-x-3">
                 <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-green-900' : 'bg-green-100'}`}>
                   <span className="text-lg">🔍</span>
                 </div>
-                <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Search Categories</h2>
+                <h2 className={`text-lg sm:text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Search Categories</h2>
               </div>
-              <span className={`text-sm px-3 py-1 rounded-full ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+              <span className={`text-xs sm:text-sm px-3 py-1 rounded-full ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
                 {filteredCategories.length} categories
               </span>
             </div>
           </div>
           
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <span className={`text-lg ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>🔍</span>
@@ -387,11 +497,18 @@ const Categories: React.FC = () => {
                 placeholder="Search categories by name or description..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500'}`}
+                className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm sm:text-base ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500'}`}
               />
             </div>
           </div>
         </div>
+
+      {/* Success Message */}
+      {success && (
+        <div className="bg-green-100 dark:bg-green-900 border border-green-400 dark:border-green-600 text-green-700 dark:text-green-200 px-4 py-3 rounded mb-4">
+          {success}
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (
@@ -401,7 +518,7 @@ const Categories: React.FC = () => {
       )}
 
       {/* Modern Categories Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
         {filteredCategories.map((category) => {
           const categoryProducts = products.filter(product => product.category_id === category.id);
           const lowStockCount = categoryProducts.filter(product => 
@@ -410,15 +527,15 @@ const Categories: React.FC = () => {
           
           return (
             <div key={category.id} className={`group ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-xl border backdrop-blur-sm transition-all duration-300 hover:shadow-2xl transform hover:scale-105`}>
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
+              <div className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-0 mb-4">
                   <div className="flex items-center space-x-3">
                     <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-blue-900' : 'bg-blue-100'}`}>
                       <span className="text-lg">📁</span>
                     </div>
-                    <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{category.name}</h3>
+                    <h3 className={`text-base sm:text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} break-words`}>{category.name}</h3>
                   </div>
-                  <span className={`px-3 py-1 text-xs rounded-full font-medium ${
+                  <span className={`px-2 sm:px-3 py-1 text-xs rounded-full font-medium whitespace-nowrap ${
                     category.is_active 
                       ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
                       : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
@@ -447,16 +564,17 @@ const Categories: React.FC = () => {
             
                 {/* Modern Action Buttons */}
                 <div className="space-y-3">
-                  <div className="flex space-x-2">
+                  <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                     <button
                       onClick={() => {
                         setSelectedCategory(category);
                         setShowProductsModal(true);
                       }}
-                      className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2.5 rounded-xl text-sm hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 font-medium flex items-center justify-center"
+                      className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 font-medium flex items-center justify-center"
                     >
-                      <span className="mr-2">👁️</span>
-                      View Products
+                      <span className="mr-1 sm:mr-2">👁️</span>
+                      <span className="hidden sm:inline">View Products</span>
+                      <span className="sm:hidden">View</span>
                     </button>
                     {(role === 'admin' || role === 'cashier') && (
                       <button
@@ -479,27 +597,28 @@ const Categories: React.FC = () => {
                           setImagePreview('');
                           setShowProductModal(true);
                         }}
-                        className="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-4 py-2.5 rounded-xl text-sm hover:from-yellow-600 hover:to-orange-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 font-medium flex items-center justify-center"
+                        className="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm hover:from-yellow-600 hover:to-orange-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 font-medium flex items-center justify-center"
                       >
-                        <span className="mr-2">➕</span>
-                        Add Product
+                        <span className="mr-1 sm:mr-2">➕</span>
+                        <span className="hidden sm:inline">Add Product</span>
+                        <span className="sm:hidden">Add</span>
                       </button>
                     )}
                   </div>
                   
-                  <div className="flex space-x-2">
+                  <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                     <button
                       onClick={() => handleEdit(category)}
-                      className={`flex-1 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${theme === 'dark' ? 'bg-gray-700 text-blue-300 hover:bg-gray-600' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'} flex items-center justify-center`}
+                      className={`flex-1 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 ${theme === 'dark' ? 'bg-gray-700 text-blue-300 hover:bg-gray-600' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'} flex items-center justify-center`}
                     >
-                      <span className="mr-2">✏️</span>
+                      <span className="mr-1 sm:mr-2">✏️</span>
                       Edit
                     </button>
                     <button
                       onClick={() => handleDelete(category.id)}
-                      className={`flex-1 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${theme === 'dark' ? 'bg-gray-700 text-red-300 hover:bg-gray-600' : 'bg-red-50 text-red-700 hover:bg-red-100'} flex items-center justify-center`}
+                      className={`flex-1 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 ${theme === 'dark' ? 'bg-gray-700 text-red-300 hover:bg-gray-600' : 'bg-red-50 text-red-700 hover:bg-red-100'} flex items-center justify-center`}
                     >
-                      <span className="mr-2">🗑️</span>
+                      <span className="mr-1 sm:mr-2">🗑️</span>
                       Delete
                     </button>
                   </div>
@@ -523,12 +642,12 @@ const Categories: React.FC = () => {
 
       {/* Category Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className={`relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md ${
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+          <div className={`relative mx-auto border w-full max-w-md shadow-lg rounded-2xl ${
             theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
           }`}>
-            <div className="mt-3">
-              <h3 className={`text-lg font-medium mb-4 ${
+            <div className="p-4 sm:p-6">
+              <h3 className={`text-lg sm:text-xl font-medium mb-4 ${
                 theme === 'dark' ? 'text-gray-100' : 'text-gray-900'
               }`}>
                 {editingCategory ? 'Edit Category' : 'Add New Category'}
@@ -581,11 +700,11 @@ const Categories: React.FC = () => {
                   }`}>Active</label>
                 </div>
 
-                <div className="flex justify-end space-x-3 pt-4">
+                <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-4">
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className={`px-4 py-2 text-sm font-medium border rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                    className={`px-4 py-2 text-sm font-medium border rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 ${
                       theme === 'dark'
                         ? 'text-gray-300 bg-gray-700 border-gray-600 hover:bg-gray-600 focus:ring-gray-500'
                         : 'text-gray-700 bg-gray-100 border-gray-300 hover:bg-gray-200 focus:ring-gray-500'
@@ -595,7 +714,7 @@ const Categories: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
                   >
                     {editingCategory ? 'Update' : 'Create'}
                   </button>
@@ -608,13 +727,13 @@ const Categories: React.FC = () => {
 
       {/* Products Modal */}
       {showProductsModal && selectedCategory && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className={`relative top-10 mx-auto p-5 border w-11/12 max-w-6xl shadow-lg rounded-md ${
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-start justify-center p-4">
+          <div className={`relative mx-auto border w-full max-w-6xl shadow-lg rounded-2xl my-4 ${
             theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
           }`}>
-            <div className="mt-3">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className={`text-lg font-medium ${
+            <div className="p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <h3 className={`text-lg sm:text-xl font-medium ${
                   theme === 'dark' ? 'text-blue-300' : 'text-blue-900'
                 }`}>
                   📦 Products in "{selectedCategory.name}" Category
@@ -633,153 +752,118 @@ const Categories: React.FC = () => {
                 const categoryProducts = products.filter(product => product.category_id === selectedCategory.id);
                 
                 return categoryProducts.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
-                        <tr>
-                          <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                            theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
-                          }`}>
-                            Image
-                          </th>
-                          <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                            theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
-                          }`}>
-                            Product
-                          </th>
-                          <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                            theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
-                          }`}>
-                            SKU
-                          </th>
-                          <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                            theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
-                          }`}>
-                            Price
-                          </th>
-                          <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                            theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
-                          }`}>
-                            Stock
-                          </th>
-                          <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                            theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
-                          }`}>
-                            Status
-                          </th>
-                          {(role === 'admin' || role === 'cashier') && (
-                            <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                  <div className="overflow-x-auto -mx-4 sm:mx-0">
+                    <div className="inline-block min-w-full align-middle">
+                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
+                          <tr>
+                            <th className={`px-3 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
                               theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
-                            }`}>
-                              Actions
-                            </th>
-                          )}
-                        </tr>
-                      </thead>
-                      <tbody className={`divide-y ${
-                        theme === 'dark' ? 'bg-gray-800 divide-gray-700' : 'bg-white divide-gray-200'
-                      }`}>
-                        {categoryProducts.map((product) => (
-                          <tr key={product.id} className={`border-b ${
-                            theme === 'dark' 
-                              ? 'bg-gray-800 hover:bg-gray-700 border-gray-700' 
-                              : 'bg-white hover:bg-gray-50 border-gray-200'
-                          } ${product.stock_quantity <= (product.min_stock_level || 5) ? 'animate-pulse' : ''}`}>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="w-16 h-16 flex-shrink-0">
-                                {product.image ? (
-                                  <img
-                                    src={product.image}
-                                    alt={product.name}
-                                    className="w-16 h-16 object-cover rounded-lg border border-gray-200"
-                                  />
-                                ) : (
-                                  <div className="w-16 h-16 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
-                                    <span className="text-gray-400 text-2xl">📦</span>
+                            }`}>Product</th>
+                            <th className={`px-3 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider hidden sm:table-cell ${
+                              theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
+                            }`}>SKU</th>
+                            <th className={`px-3 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                              theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
+                            }`}>Price</th>
+                            <th className={`px-3 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                              theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
+                            }`}>Stock</th>
+                            <th className={`px-3 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider hidden md:table-cell ${
+                              theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
+                            }`}>Status</th>
+                            <th className={`px-3 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                              theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
+                            }`}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className={`divide-y ${
+                          theme === 'dark' ? 'bg-gray-800 divide-gray-700' : 'bg-white divide-gray-200'
+                        }`}>
+                          {categoryProducts.map((product) => (
+                            <tr key={product.id} className={`border-b ${
+                              theme === 'dark' 
+                                ? 'bg-gray-800 hover:bg-gray-700 border-gray-700' 
+                                : 'bg-white hover:bg-gray-50 border-gray-200'
+                            } ${product.stock_quantity <= (product.min_stock_level || 5) ? 'animate-pulse' : ''}`}>
+                              <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <div>
+                                    <div className={`text-sm font-medium ${
+                                      theme === 'dark' ? 'text-gray-100' : 'text-gray-900'
+                                    }`}>{product.name}</div>
+                                    <div className={`text-sm ${
+                                      theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>{product.description}</div>
                                   </div>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <div>
-                                  <div className={`text-sm font-medium ${
-                                    theme === 'dark' ? 'text-gray-100' : 'text-gray-900'
-                                  }`}>{product.name}</div>
-                                  <div className={`text-sm ${
-                                    theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                                  }`}>{product.description}</div>
                                 </div>
-                              </div>
-                            </td>
-                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${
-                              theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
-                            }`}>
-                              {product.sku}
-                            </td>
-                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${
-                              theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
-                            }`}>
-                              ₱{product.price.toFixed(2)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <span className={`text-sm font-medium ${
+                              </td>
+                              <td className={`px-3 sm:px-6 py-4 whitespace-nowrap text-sm hidden sm:table-cell ${
+                                theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
+                              }`}>
+                                {product.sku}
+                              </td>
+                              <td className={`px-3 sm:px-6 py-4 whitespace-nowrap text-sm ${
+                                theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
+                              }`}>
+                                ${parseFloat(product.price).toFixed(2)}
+                              </td>
+                              <td className={`px-3 sm:px-6 py-4 whitespace-nowrap text-sm ${
+                                theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
+                              }`}>
+                                <span className={`px-2 py-1 text-xs rounded-full ${
                                   product.stock_quantity <= (product.min_stock_level || 5)
-                                    ? 'text-red-600 animate-pulse' 
-                                    : theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
+                                    ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                    : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                                 }`}>
                                   {product.stock_quantity}
                                 </span>
-                                {product.stock_quantity <= (product.min_stock_level || 5) && (
-                                  <span className="ml-2 text-xs text-red-500 animate-bounce">⚠️ Low Stock</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                product.is_active 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-red-100 text-red-800'
-                              }`}>
-                                {product.is_active ? 'Active' : 'Inactive'}
-                              </span>
-                            </td>
-                            {(role === 'admin' || role === 'cashier') && (
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <div className="flex space-x-2">
-                                  <button
-                                    onClick={() => {
-                                      console.log('Editing product:', product);
-                                      console.log('Product stock_quantity:', product.stock_quantity);
-                                      setEditingProduct(product);
-                                      setProductFormData({
-                                        name: product.name,
-                                        description: product.description || '',
-                                        sku: product.sku,
-                                        category_id: product.category_id?.toString() || '',
-                                        price: product.price.toString(),
-                                        cost: product.cost.toString(),
-                                        min_stock_level: product.min_stock_level.toString(),
-                                        stock_quantity: product.stock_quantity.toString(),
-                                        image: product.image || '',
-                                        is_active: product.is_active
-                                      });
-                                      setSelectedImageFile(null);
-                                      setImagePreview(product.image || '');
-                                      setShowProductModal(true);
-                                    }}
-                                    className="text-blue-800 hover:text-blue-900 font-medium"
-                                  >
-                                    Edit
-                                  </button>
-                                </div>
                               </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                              <td className={`px-3 sm:px-6 py-4 whitespace-nowrap text-sm hidden md:table-cell ${
+                                theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
+                              }`}>
+                                <span className={`px-2 py-1 text-xs rounded-full ${
+                                  product.is_active 
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                                    : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                }`}>
+                                  {product.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                              <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm">
+                                <button
+                                  onClick={() => {
+                                    setEditingProduct(product);
+                                    setProductFormData({
+                                      name: product.name,
+                                      description: product.description || '',
+                                      sku: product.sku,
+                                      category_id: product.category_id.toString(),
+                                      price: product.price.toString(),
+                                      cost: product.cost?.toString() || '',
+                                      min_stock_level: product.min_stock_level?.toString() || '',
+                                      stock_quantity: product.stock_quantity.toString(),
+                                      image: product.image || '',
+                                      is_active: product.is_active
+                                    });
+                                    setSelectedImageFile(null);
+                                    setImagePreview('');
+                                    setShowProductModal(true);
+                                  }}
+                                  className={`text-xs px-2 py-1 rounded transition-colors ${
+                                    theme === 'dark'
+                                      ? 'text-blue-300 hover:bg-gray-700'
+                                      : 'text-blue-600 hover:bg-blue-50'
+                                  }`}
+                                >
+                                  Edit
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-12">

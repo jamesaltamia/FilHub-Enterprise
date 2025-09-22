@@ -294,8 +294,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
     }
 
-    // Clear auth data but preserve user list and 2FA data
+    // Clear auth data but preserve user list, 2FA data, and business data
     const users = localStorage.getItem('filhub_users');
+    const categories = localStorage.getItem('categories');
+    const products = localStorage.getItem('products');
+    const orders = localStorage.getItem('orders');
+    const customers = localStorage.getItem('customers');
     const twoFactorKeys = Object.keys(localStorage).filter(key => key.startsWith('2fa_'));
     const twoFactorData: { [key: string]: string } = {};
     
@@ -314,16 +318,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('filhub_users', users);
     }
     
+    // Restore business data
+    if (categories) {
+      localStorage.setItem('categories', categories);
+    }
+    
+    if (products) {
+      localStorage.setItem('products', products);
+    }
+    
+    if (orders) {
+      localStorage.setItem('orders', orders);
+    }
+    
+    if (customers) {
+      localStorage.setItem('customers', customers);
+    }
+    
     // Restore 2FA data
     Object.keys(twoFactorData).forEach(key => {
       localStorage.setItem(key, twoFactorData[key]);
     });
+    
     setUser(null);
     setToken(null);
     setRole(null);
     setPermissions([]);
 
-    console.log("Logout completed");
+    console.log("Logout completed - business data preserved");
   };
 
   const hasRole = (roleName: string): boolean => {
