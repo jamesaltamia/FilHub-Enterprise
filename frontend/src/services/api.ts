@@ -330,6 +330,245 @@ export const ordersAPI = {
   },
 };
 
+// Customers API methods
+export const customersAPI = {
+  getAll: async (params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+  }) => {
+    const response = await api.get<ApiResponse<PaginatedResponse>>('/customers', { params });
+    return response.data;
+  },
+
+  getById: async (id: number) => {
+    const response = await api.get<ApiResponse>(`/customers/${id}`);
+    return response.data;
+  },
+
+  create: async (customerData: {
+    name: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    postal_code?: string;
+    education_level?: string;
+    year?: string;
+    grade_level?: string;
+    section?: string;
+    strand?: string;
+    college?: string;
+    course?: string;
+  }) => {
+    const response = await api.post<ApiResponse>('/customers', customerData);
+    return response.data;
+  },
+
+  update: async (id: number, customerData: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    postal_code?: string;
+    education_level?: string;
+    year?: string;
+    grade_level?: string;
+    section?: string;
+    strand?: string;
+    college?: string;
+    course?: string;
+    is_active?: boolean;
+  }) => {
+    const response = await api.put<ApiResponse>(`/customers/${id}`, customerData);
+    return response.data;
+  },
+
+  delete: async (id: number) => {
+    const response = await api.delete<ApiResponse>(`/customers/${id}`);
+    return response.data;
+  },
+};
+
+// Users API methods
+export const usersAPI = {
+  getAll: async (params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    role?: string;
+    status?: string;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+  }) => {
+    const response = await api.get<ApiResponse<PaginatedResponse>>('/users', { params });
+    return response.data;
+  },
+
+  getById: async (id: number) => {
+    const response = await api.get<ApiResponse>(`/users/${id}`);
+    return response.data;
+  },
+
+  create: async (userData: {
+    name: string;
+    email: string;
+    password: string;
+    password_confirmation: string;
+    role?: string;
+    status?: string;
+    phone?: string;
+    address?: string;
+  }) => {
+    const response = await api.post<ApiResponse>('/users', userData);
+    return response.data;
+  },
+
+  update: async (id: number, userData: {
+    name?: string;
+    email?: string;
+    role?: string;
+    status?: string;
+    phone?: string;
+    address?: string;
+  }) => {
+    const response = await api.put<ApiResponse>(`/users/${id}`, userData);
+    return response.data;
+  },
+
+  delete: async (id: number) => {
+    const response = await api.delete<ApiResponse>(`/users/${id}`);
+    return response.data;
+  },
+
+  updatePassword: async (id: number, passwordData: {
+    current_password: string;
+    password: string;
+    password_confirmation: string;
+  }) => {
+    const response = await api.put<ApiResponse>(`/users/${id}/password`, passwordData);
+    return response.data;
+  },
+};
+
+// Reports API methods
+export const reportsAPI = {
+  getSalesReport: async (params?: {
+    date_from?: string;
+    date_to?: string;
+    period?: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  }) => {
+    const response = await api.get<ApiResponse>('/reports/sales', { params });
+    return response.data;
+  },
+
+  getProductsReport: async (params?: {
+    date_from?: string;
+    date_to?: string;
+    category_id?: number;
+  }) => {
+    const response = await api.get<ApiResponse>('/reports/products', { params });
+    return response.data;
+  },
+
+  getCustomersReport: async (params?: {
+    date_from?: string;
+    date_to?: string;
+  }) => {
+    const response = await api.get<ApiResponse>('/reports/customers', { params });
+    return response.data;
+  },
+
+  getInventoryReport: async () => {
+    const response = await api.get<ApiResponse>('/reports/inventory');
+    return response.data;
+  },
+
+  exportReport: async (type: 'sales' | 'products' | 'customers' | 'inventory', format: 'pdf' | 'excel', params?: any) => {
+    const response = await api.get<Blob>(`/reports/${type}/export`, { 
+      params: { format, ...params },
+      responseType: 'blob'
+    });
+    return response;
+  },
+};
+
+// Settings API methods
+export const settingsAPI = {
+  getAll: async () => {
+    const response = await api.get<ApiResponse>('/settings');
+    return response.data;
+  },
+
+  update: async (settings: {
+    low_stock_threshold?: number;
+    currency?: string;
+    tax_rate?: number;
+    business_name?: string;
+    business_address?: string;
+    business_phone?: string;
+    business_email?: string;
+    receipt_footer?: string;
+    email_notifications?: boolean;
+    sms_notifications?: boolean;
+  }) => {
+    const response = await api.put<ApiResponse>('/settings', settings);
+    return response.data;
+  },
+
+  getBusinessInfo: async () => {
+    const response = await api.get<ApiResponse>('/settings/business');
+    return response.data;
+  },
+
+  updateBusinessInfo: async (businessData: {
+    business_name?: string;
+    business_address?: string;
+    business_phone?: string;
+    business_email?: string;
+    business_logo?: string;
+  }) => {
+    const response = await api.put<ApiResponse>('/settings/business', businessData);
+    return response.data;
+  },
+};
+
+// Enhanced Dashboard API methods
+export const enhancedDashboardAPI = {
+  getOverview: async () => {
+    const response = await api.get<ApiResponse>('/dashboard/overview');
+    return response.data;
+  },
+
+  getStats: async (period?: 'today' | 'week' | 'month' | 'year') => {
+    const response = await api.get<ApiResponse>('/dashboard/stats', { params: { period } });
+    return response.data;
+  },
+
+  getRecentActivity: async (limit?: number) => {
+    const response = await api.get<ApiResponse>('/dashboard/recent-activity', { params: { limit } });
+    return response.data;
+  },
+
+  getTopProducts: async (limit?: number) => {
+    const response = await api.get<ApiResponse>('/dashboard/top-products', { params: { limit } });
+    return response.data;
+  },
+
+  getTopCustomers: async (limit?: number) => {
+    const response = await api.get<ApiResponse>('/dashboard/top-customers', { params: { limit } });
+    return response.data;
+  },
+
+  getSalesChart: async (period?: 'week' | 'month' | 'year') => {
+    const response = await api.get<ApiResponse>('/dashboard/sales-chart', { params: { period } });
+    return response.data;
+  },
+};
+
 // Export the main api instance for custom requests
 export default api;
 

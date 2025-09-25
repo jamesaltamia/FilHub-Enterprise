@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { LowStockService } from '../utils/lowStockUtils';
 import LowStockAlert from '../components/LowStockAlert';
+import { enhancedDashboardAPI, ordersAPI, customersAPI, productsAPI } from '../services/api';
 
 interface DashboardStats {
   totalSales: number;
@@ -57,19 +58,72 @@ const Dashboard: React.FC = () => {
 
   const fetchDashboardData = async () => {
     try {
-      // Load data from localStorage (real-time from Sales/Orders)
-      const orders = JSON.parse(localStorage.getItem('orders') || '[]');
-      const products = JSON.parse(localStorage.getItem('products') || '[]');
+      let orders = [];
+      let products = [];
+      let customers = [];
+      let dashboardStats = null;
+
+      // Try to fetch from backend API first
+      try {
+        const [statsResponse, ordersResponse, productsResponse, customersResponse] = await Promise.all([
+          enhancedDashboardAPI.getStats('today'),
+          ordersAPI.getAll({ per_page: 1000 }),
+          productsAPI.getAll({ per_page: 1000 }),
+          customersAPI.getAll({ per_page: 1000 })
+        ]);
+
+        if (statsResponse && statsResponse.data) {
+          dashboardStats = statsResponse.data;
+          console.log('Dashboard stats loaded from backend API');
+        }
+
+        if (ordersResponse && ordersResponse.data) {
+          orders = Array.isArray(ordersResponse.data.data) ? ordersResponse.data.data : (Array.isArray(ordersResponse.data) ? ordersResponse.data : []);
+          localStorage.setItem('orders', JSON.stringify(orders));
+        }
+
+        if (productsResponse && productsResponse.data) {
+          products = Array.isArray(productsResponse.data.data) ? productsResponse.data.data : (Array.isArray(productsResponse.data) ? productsResponse.data : []);
+          localStorage.setItem('products', JSON.stringify(products));
+        }
+
+        if (customersResponse && customersResponse.data) {
+          customers = Array.isArray(customersResponse.data.data) ? customersResponse.data.data : (Array.isArray(customersResponse.data) ? customersResponse.data : []);
+          localStorage.setItem('customers', JSON.stringify(customers));
+        }
+      } catch (apiError) {
+        console.log('Backend API failed, using localStorage fallback:', apiError);
+        
+        // Fallback to localStorage
+        orders = JSON.parse(localStorage.getItem('orders') || '[]');
+        products = JSON.parse(localStorage.getItem('products') || '[]');
+        customers = JSON.parse(localStorage.getItem('customers') || '[]');
+      }
+
+      // Calculate stats (use backend stats if available, otherwise calculate from localStorage)
+      let totalOrders, totalSales, pendingOrders, todaysSales, totalCustomers;
       
-      // Calculate real-time stats
-      const totalOrders = orders.length;
-      const totalSales = orders.reduce((sum: number, order: any) => sum + (order.total_amount || 0), 0);
-      const pendingOrders = orders.filter((order: any) => order.order_status === 'pending').length;
-      // Calculate today's sales (orders from today)
-      const today = new Date().toDateString();
-      const todaysSales = orders
-        .filter((order: any) => new Date(order.created_at).toDateString() === today)
-        .reduce((sum: number, order: any) => sum + (order.total_amount || 0), 0);
+      if (dashboardStats) {
+        totalOrders = dashboardStats.total_orders || orders.length;
+        totalSales = dashboardStats.total_sales || 0;
+        pendingOrders = dashboardStats.pending_orders || 0;
+        todaysSales = dashboardStats.todays_sales || 0;
+        totalCustomers = dashboardStats.total_customers || customers.length;
+      } else {
+        // Calculate from localStorage data
+        totalOrders = orders.length;
+        totalSales = orders.reduce((sum: number, order: any) => sum + (order.total_amount || 0), 0);
+        pendingOrders = orders.filter((order: any) => order.order_status === 'pending').length;
+        
+        // Calculate today's sales (orders from today)
+        const today = new Date().toDateString();
+        todaysSales = orders
+          .filter((order: any) => new Date(order.created_at).toDateString() === today)
+          .reduce((sum: number, order: any) => sum + (order.total_amount || 0), 0);
+        
+        totalCustomers = customers.length;
+      }
+
       // Use the functional low stock threshold
       const lowStockProductsArray = products.filter((product: any) => {
         const stock = product.stock_quantity || product.stock || 0;
@@ -81,7 +135,7 @@ const Dashboard: React.FC = () => {
         totalSales,
         totalOrders,
         totalProducts: products.length,
-        totalCustomers: 0, // Will be calculated when customers are implemented
+        totalCustomers,
         lowStockProducts,
         pendingOrders,
         todaysSales,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { reportsAPI, ordersAPI, customersAPI, productsAPI } from '../services/api';
 
 interface ReportStats {
   totalSales: number;
@@ -56,11 +57,37 @@ const Reports: React.FC = () => {
     fetchReportData();
   }, [dateRange]);
 
-  const fetchReportData = () => {
+  const fetchReportData = async () => {
     setIsLoading(true);
     try {
-      const orders = JSON.parse(localStorage.getItem('orders') || '[]');
-      const products = JSON.parse(localStorage.getItem('products') || '[]');
+      let orders = [];
+      let products = [];
+
+      // Try to fetch from backend API first
+      try {
+        const [ordersResponse, productsResponse] = await Promise.all([
+          ordersAPI.getAll({ per_page: 1000 }),
+          productsAPI.getAll({ per_page: 1000 })
+        ]);
+
+        if (ordersResponse && ordersResponse.data) {
+          orders = Array.isArray(ordersResponse.data.data) ? ordersResponse.data.data : (Array.isArray(ordersResponse.data) ? ordersResponse.data : []);
+          localStorage.setItem('orders', JSON.stringify(orders));
+        }
+
+        if (productsResponse && productsResponse.data) {
+          products = Array.isArray(productsResponse.data.data) ? productsResponse.data.data : (Array.isArray(productsResponse.data) ? productsResponse.data : []);
+          localStorage.setItem('products', JSON.stringify(products));
+        }
+
+        console.log('Reports data loaded from backend API');
+      } catch (apiError) {
+        console.log('Backend API failed, using localStorage fallback:', apiError);
+        
+        // Fallback to localStorage
+        orders = JSON.parse(localStorage.getItem('orders') || '[]');
+        products = JSON.parse(localStorage.getItem('products') || '[]');
+      }
 
       // Calculate date ranges
       const now = new Date();

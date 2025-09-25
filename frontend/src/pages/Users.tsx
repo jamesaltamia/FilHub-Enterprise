@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { usersAPI } from '../services/api';
 
 interface User {
   id: number;
@@ -15,20 +16,40 @@ const Users: React.FC = () => {
   const { role } = useAuth();
   const { theme } = useTheme();
   
+  // Create default users function
+  const createDefaultUsers = () => {
+    const defaultUsers = [
+      { id: 1, name: 'Admin User', email: 'admin@filhub.com', role: 'admin', status: 'active', password: 'admin123' },
+      { id: 2, name: 'Cashier User', email: 'cashier@filhub.com', role: 'cashier', status: 'active', password: 'cashier123' }
+    ];
+    localStorage.setItem('filhub_users', JSON.stringify(defaultUsers));
+    return defaultUsers;
+  };
+
   const [users, setUsers] = useState<User[]>(() => {
+    // Initialize with localStorage data or default users immediately
     const saved = localStorage.getItem('filhub_users');
+    console.log('Loading users from localStorage:', saved);
+    
     if (saved) {
-      return JSON.parse(saved);
-    } else {
-      // Only initialize with defaults if localStorage is completely empty
-      const defaultUsers = [
-        { id: 1, name: 'Admin User', email: 'admin@filhub.com', role: 'admin', status: 'active', password: 'admin123' },
-        { id: 2, name: 'Cashier User', email: 'cashier@filhub.com', role: 'cashier', status: 'active', password: 'cashier123' }
-      ];
-      localStorage.setItem('filhub_users', JSON.stringify(defaultUsers));
-      return defaultUsers;
+      try {
+        const parsedUsers = JSON.parse(saved);
+        console.log('Parsed users:', parsedUsers);
+        if (Array.isArray(parsedUsers) && parsedUsers.length > 0) {
+          return parsedUsers;
+        }
+      } catch (error) {
+        console.error('Error parsing saved users:', error);
+      }
     }
+    
+    // Create default users if none exist or parsing failed
+    console.log('Creating default users...');
+    const defaultUsers = createDefaultUsers();
+    console.log('Default users created:', defaultUsers);
+    return defaultUsers;
   });
+  const [loading, setLoading] = useState(false);
 
   const [newUser, setNewUser] = useState({
     name: '',
@@ -41,10 +62,36 @@ const Users: React.FC = () => {
   const [filterRole, setFilterRole] = useState('all');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Save users to localStorage whenever users array changes
+  // Fetch users from backend API with localStorage fallback
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+
+      try {
+        // Try to fetch from backend API first
+        const response = await usersAPI.getAll({ per_page: 1000 });
+        if (response && response.data) {
+          const backendUsers = Array.isArray(response.data.data) ? response.data.data : (Array.isArray(response.data) ? response.data : []);
+          console.log('Users loaded from backend API:', backendUsers);
+          
+          // Update with backend data
+          setUsers(backendUsers);
+          localStorage.setItem('filhub_users', JSON.stringify(backendUsers));
+        }
+      } catch (apiError) {
+        console.log('Backend API failed, keeping existing localStorage users:', apiError);
+        // Don't change existing users if API fails - they're already loaded from localStorage in useState
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem('filhub_users', JSON.stringify(users));
-  }, [users]);
+    fetchUsers();
+  }, []);
 
   // Filter users based on search and role filter
   const filteredUsers = users.filter(user => {
@@ -54,32 +101,67 @@ const Users: React.FC = () => {
     return matchesSearch && matchesRole;
   });
 
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     if (newUser.name && newUser.email && newUser.password) {
-      const newId = Math.max(...users.map(u => u.id)) + 1;
-      const newUserData = {...newUser, id: newId, status: 'active'};
-      const updatedUsers = [...users, newUserData];
-      
-      console.log('Adding new user:', newUserData);
-      console.log('Updated users array:', updatedUsers);
-      
-      setUsers(updatedUsers);
-      
-      // Immediately save to localStorage to ensure it's stored
-      localStorage.setItem('filhub_users', JSON.stringify(updatedUsers));
-      console.log('Saved to localStorage:', localStorage.getItem('filhub_users'));
-      
-      setNewUser({name: '', email: '', role: 'cashier', password: ''});
-      alert('User added successfully!');
+      try {
+        let backendUserId = null;
+
+        // Try to create user in backend first
+        try {
+          const response = await usersAPI.create({
+            name: newUser.name,
+            email: newUser.email,
+            password: newUser.password,
+            password_confirmation: newUser.password,
+            role: newUser.role,
+            status: 'active'
+          });
+          backendUserId = response.data.id;
+          console.log('User created in backend successfully:', backendUserId);
+        } catch (apiError) {
+          console.log('Backend API failed for user creation, using localStorage fallback:', apiError);
+        }
+
+        // Update locally (fallback/sync)
+        const newId = backendUserId || (Math.max(...users.map(u => u.id)) + 1);
+        const newUserData = {...newUser, id: newId, status: 'active'};
+        const updatedUsers = [...users, newUserData];
+        
+        setUsers(updatedUsers);
+        localStorage.setItem('filhub_users', JSON.stringify(updatedUsers));
+        
+        setNewUser({name: '', email: '', role: 'cashier', password: ''});
+        alert('User added successfully!');
+      } catch (error) {
+        console.error('Error adding user:', error);
+        alert('Error adding user. Please try again.');
+      }
     } else {
       alert('Please fill all fields');
     }
   };
 
-  const handleRemoveUser = (userId: number) => {
+  const handleRemoveUser = async (userId: number) => {
     if (window.confirm('Are you sure you want to remove this user?')) {
-      setUsers(users.filter(u => u.id !== userId));
-      alert('User removed successfully!');
+      try {
+        // Try to delete from backend first
+        try {
+          await usersAPI.delete(userId);
+          console.log('User deleted from backend successfully');
+        } catch (apiError) {
+          console.log('Backend API failed for user deletion, using localStorage fallback:', apiError);
+        }
+
+        // Update locally (fallback/sync)
+        const updatedUsers = users.filter(u => u.id !== userId);
+        setUsers(updatedUsers);
+        localStorage.setItem('filhub_users', JSON.stringify(updatedUsers));
+        
+        alert('User removed successfully!');
+      } catch (error) {
+        console.error('Error removing user:', error);
+        alert('Error removing user. Please try again.');
+      }
     }
   };
 
@@ -136,6 +218,22 @@ const Users: React.FC = () => {
                 <span className="text-lg">➕</span>
               </div>
               <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Add New User</h2>
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => {
+                  const defaultUsers = createDefaultUsers();
+                  setUsers(defaultUsers);
+                  alert('Default users restored!\n\nAdmin: admin@filhub.com / admin123\nCashier: cashier@filhub.com / cashier123');
+                }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  theme === 'dark' 
+                    ? 'bg-yellow-900 text-yellow-200 hover:bg-yellow-800' 
+                    : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                }`}
+              >
+                🔄 Reset to Default Users
+              </button>
             </div>
           </div>
           <div className="p-6">

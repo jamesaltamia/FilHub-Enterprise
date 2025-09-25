@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { productsAPI } from '../services/api';
+import { productsAPI, ordersAPI, customersAPI } from '../services/api';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface Product {
@@ -38,21 +38,203 @@ interface SaleItem {
 interface Customer {
   id?: number;
   name: string;
-  phone: string;
-  email: string;
-  address?: string;
-  city?: string;
-  postal_code?: string;
   total_orders?: number;
   total_spent?: number;
   is_active?: boolean;
+  // Educational Information
+  education_level?: string;
+  year?: string;
+  grade_level?: string;
+  section?: string;
+  strand?: string;
+  college?: string;
+  course?: string;
 }
 
+// Educational Data Constants
+const EDUCATION_LEVELS = [
+  'Kinder',
+  'Elementary',
+  'High School',
+  'Senior High School',
+  'College'
+];
+
+const ELEMENTARY_GRADES = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
+const HIGH_SCHOOL_GRADES = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
+const SENIOR_HIGH_GRADES = ['Grade 11', 'Grade 12'];
+const HIGH_SCHOOL_SECTIONS = ['1', '2', '3', '4', '5'];
+const SENIOR_HIGH_STRANDS = ['STEM', 'TVL', 'ABM', 'HUMMS'];
+const COLLEGE_SECTIONS = ['A', 'B', 'C', 'D', 'E'];
+
+const COLLEGE_PROGRAMS = {
+  'College of Arts and Sciences': [
+    'Bachelor of Arts (BA) major in Theology',
+    'Bachelor of Arts major in Political Science',
+    'Bachelor of Science in Biology (BS Bio)',
+    'Bachelor of Science in Psychology (BS Psych)',
+    'Bachelor of Science in Social Work (BSSW)'
+  ],
+  'College of Business and Accountancy': [
+    'Bachelor of Science in Accountancy',
+    'Bachelor of Science in Business Administration (BSBA) - Human Resource Management',
+    'Bachelor of Science in Business Administration (BSBA) - Financial Management',
+    'Bachelor of Science in Business Administration (BSBA) - Marketing Management',
+    'Bachelor of Science in Business Administration (BSBA) - Operations Management',
+    'Bachelor of Science in Entrepreneurship'
+  ],
+  'College of Computer Studies': [
+    'Bachelor of Science in Computer Science',
+    'Bachelor of Science in Information Technology'
+  ],
+  'College of Criminal Justice Education': [
+    'Bachelor of Science in Criminology (BSCrim)'
+  ],
+  'College of Engineering': [
+    'Bachelor of Science in Electronics Engineering'
+  ],
+  'College of Hotel and Tourism Management': [
+    'Bachelor of Science in Hospitality Management (BSHM) - Cruise Ship Operations',
+    'Bachelor of Science in Hospitality Management (BSHM) - Hotel & Restaurant Management',
+    'Bachelor of Science in Tourism Management (BSTM)'
+  ],
+  'College of Nursing': [
+    'Bachelor of Science in Nursing (BSN)'
+  ],
+  'College of Teacher Education': [
+    'Bachelor of Elementary Education (BEEd)',
+    'Bachelor of Secondary Education (BSEd) - English',
+    'Bachelor of Secondary Education (BSEd) - Mathematics',
+    'Bachelor of Secondary Education (BSEd) - Filipino',
+    'Bachelor of Secondary Education (BSEd) - Science',
+    'Bachelor of Secondary Education (BSEd) - Social Studies',
+    'Bachelor of Culture and Arts Education (BCAEd)',
+    'Bachelor of Early Childhood Education (BECEd)',
+    'Bachelor of Physical Education (BPEd)',
+    'Bachelor of Special Needs Education (BSNEd)'
+  ]
+};
+
+// Helper functions for educational form logic
+const getAvailableGrades = (educationLevel: string) => {
+  switch (educationLevel) {
+    case 'Elementary':
+      return ELEMENTARY_GRADES;
+    case 'High School':
+      return HIGH_SCHOOL_GRADES;
+    case 'Senior High School':
+      return SENIOR_HIGH_GRADES;
+    default:
+      return [];
+  }
+};
+
+const getAvailableSections = (educationLevel: string) => {
+  switch (educationLevel) {
+    case 'High School':
+      return HIGH_SCHOOL_SECTIONS;
+    case 'College':
+      return COLLEGE_SECTIONS;
+    default:
+      return [];
+  }
+};
+
+const getAvailableColleges = () => {
+  return Object.keys(COLLEGE_PROGRAMS);
+};
+
+const getAvailableCourses = (college: string) => {
+  return COLLEGE_PROGRAMS[college as keyof typeof COLLEGE_PROGRAMS] || [];
+};
+
 const Sales: React.FC = () => {
-  const { } = useAuth();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const auth = useAuth();
   const navigate = useNavigate();
   const { theme } = useTheme();
   const location = useLocation();
+
+  // Helper function to create educational summary
+  const createEducationalSummary = (customerData: Customer) => {
+    if (!customerData.education_level) return '';
+    
+    switch (customerData.education_level) {
+      case 'Kinder': {
+        return 'Kinder';
+      }
+      
+      case 'Elementary': {
+        return customerData.grade_level ? customerData.grade_level : 'Elementary';
+      }
+      
+      case 'High School': {
+        return customerData.grade_level ? customerData.grade_level : 'High School';
+      }
+      
+      case 'Senior High School': {
+        const grade = customerData.grade_level ? customerData.grade_level.replace('Grade ', '') : '';
+        const strand = customerData.strand || '';
+        return strand && grade ? `${strand}-${grade}` : 'Senior High School';
+      }
+      
+      case 'College': {
+        const course = customerData.course || '';
+        const year = customerData.year || '';
+        
+        // Create course abbreviation
+        let courseAbbrev = '';
+        if (course.includes('Bachelor of Science in Computer Science')) courseAbbrev = 'BSCS';
+        else if (course.includes('Bachelor of Science in Information Technology')) courseAbbrev = 'BSIT';
+        else if (course.includes('Bachelor of Science in Accountancy')) courseAbbrev = 'BSA';
+        else if (course.includes('Bachelor of Science in Business Administration')) {
+          if (course.includes('Human Resource Management')) courseAbbrev = 'BSBA-HRM';
+          else if (course.includes('Financial Management')) courseAbbrev = 'BSBA-FM';
+          else if (course.includes('Marketing Management')) courseAbbrev = 'BSBA-MM';
+          else if (course.includes('Operations Management')) courseAbbrev = 'BSBA-OM';
+          else courseAbbrev = 'BSBA';
+        }
+        else if (course.includes('Bachelor of Science in Entrepreneurship')) courseAbbrev = 'BSE';
+        else if (course.includes('Bachelor of Science in Criminology')) courseAbbrev = 'BSCrim';
+        else if (course.includes('Bachelor of Science in Electronics Engineering')) courseAbbrev = 'BSEE';
+        else if (course.includes('Bachelor of Science in Hospitality Management')) courseAbbrev = 'BSHM';
+        else if (course.includes('Bachelor of Science in Tourism Management')) courseAbbrev = 'BSTM';
+        else if (course.includes('Bachelor of Science in Nursing')) courseAbbrev = 'BSN';
+        else if (course.includes('Bachelor of Elementary Education')) courseAbbrev = 'BEEd';
+        else if (course.includes('Bachelor of Secondary Education')) {
+          if (course.includes('English')) courseAbbrev = 'BSEd-Eng';
+          else if (course.includes('Mathematics')) courseAbbrev = 'BSEd-Math';
+          else if (course.includes('Filipino')) courseAbbrev = 'BSEd-Fil';
+          else if (course.includes('Science')) courseAbbrev = 'BSEd-Sci';
+          else if (course.includes('Social Studies')) courseAbbrev = 'BSEd-SS';
+          else courseAbbrev = 'BSEd';
+        }
+        else if (course.includes('Bachelor of Culture and Arts Education')) courseAbbrev = 'BCAEd';
+        else if (course.includes('Bachelor of Early Childhood Education')) courseAbbrev = 'BECEd';
+        else if (course.includes('Bachelor of Physical Education')) courseAbbrev = 'BPEd';
+        else if (course.includes('Bachelor of Special Needs Education')) courseAbbrev = 'BSNEd';
+        else if (course.includes('Bachelor of Arts') && course.includes('Theology')) courseAbbrev = 'BA-Theo';
+        else if (course.includes('Bachelor of Arts') && course.includes('Political Science')) courseAbbrev = 'BA-PolSci';
+        else if (course.includes('Bachelor of Science in Biology')) courseAbbrev = 'BS-Bio';
+        else if (course.includes('Bachelor of Science in Psychology')) courseAbbrev = 'BS-Psych';
+        else if (course.includes('Bachelor of Science in Social Work')) courseAbbrev = 'BSSW';
+        else courseAbbrev = 'College';
+        
+        // Extract year number
+        let yearNum = '';
+        if (year.includes('1st')) yearNum = '1';
+        else if (year.includes('2nd')) yearNum = '2';
+        else if (year.includes('3rd')) yearNum = '3';
+        else if (year.includes('4th')) yearNum = '4';
+        else if (year.includes('5th')) yearNum = '5';
+        
+        return courseAbbrev && yearNum ? `${courseAbbrev}-${yearNum}` : courseAbbrev || 'College';
+      }
+      
+      default:
+        return '';
+    }
+  };
   
   // Get product from navigation state (when redirected from Products page)
   const productFromNavigation = location.state?.product;
@@ -65,9 +247,7 @@ const Sales: React.FC = () => {
   
   // Customer information
   const [customer, setCustomer] = useState<Customer>({
-    name: '',
-    phone: '',
-    email: ''
+    name: ''
   });
   
   // Payment and totals
@@ -87,12 +267,15 @@ const Sales: React.FC = () => {
   // New customer form data
   const [newCustomerForm, setNewCustomerForm] = useState({
     name: '',
-    email: '',
-    phone: '',
-    address: '',
-    city: '',
-    postal_code: '',
-    is_active: true
+    is_active: true,
+    // Educational Information
+    education_level: '',
+    year: '',
+    grade_level: '',
+    section: '',
+    strand: '',
+    college: '',
+    course: ''
   });
 
   // Fetch products for sale
@@ -121,19 +304,43 @@ const Sales: React.FC = () => {
           } else {
             setProducts([]);
           }
-        } catch (apiError) {
+        } catch {
           console.log('Sales: API failed (expected in demo mode), using empty product list');
           setProducts([]);
           // Don't show error for API failures in demo mode
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching products:', err);
       setProducts([]);
     } finally {
       setLoading(false);
     }
   };
+
+  // Add product to sale
+  const addToSale = useCallback((product: Product) => {
+    const existingItem = saleItems.find(item => item.id === product.id);
+    const price = product.selling_price || product.price;
+    
+    if (existingItem) {
+      setSaleItems(prev => prev.map(item => 
+        item.id === product.id 
+          ? { ...item, quantity: Math.min(item.quantity + 1, item.stock) }
+          : item
+      ));
+    } else {
+      setSaleItems(prev => [...prev, {
+        id: product.id,
+        name: product.name,
+        price: price,
+        quantity: 1,
+        stock: product.stock_quantity,
+        total: price,
+        image: product.image
+      }]);
+    }
+  }, [saleItems]);
 
   useEffect(() => {
     fetchProducts();
@@ -144,8 +351,30 @@ const Sales: React.FC = () => {
       // Clear the navigation state to prevent re-adding on refresh
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [productFromNavigation]);
+  }, [productFromNavigation, addToSale, location.pathname, navigate]);
 
+  // Handle education level change and reset dependent fields
+  const handleEducationLevelChange = (educationLevel: string) => {
+    setNewCustomerForm(prev => ({
+      ...prev,
+      education_level: educationLevel,
+      year: '',
+      grade_level: '',
+      section: '',
+      strand: '',
+      college: '',
+      course: ''
+    }));
+  };
+
+  // Handle college change and reset course
+  const handleCollegeChange = (college: string) => {
+    setNewCustomerForm(prev => ({
+      ...prev,
+      college: college,
+      course: ''
+    }));
+  };
 
   // Add new customer function
   const addNewCustomer = async (e: React.FormEvent) => {
@@ -160,12 +389,12 @@ const Sales: React.FC = () => {
       };
 
       // Get existing customers
-      const existingCustomers = JSON.parse(localStorage.getItem('customers') || '[]');
+      const existingCustomers = JSON.parse(localStorage.getItem('customers') || '[]') as Customer[];
       
       // Create new customer with unique ID
       const newCustomer = {
         ...customerData,
-        id: Math.max(...existingCustomers.map((c: any) => c.id), 0) + 1
+        id: Math.max(...existingCustomers.map((c: Customer) => c.id || 0), 0) + 1
       };
       
       // Add to customers list
@@ -176,23 +405,21 @@ const Sales: React.FC = () => {
       // Set as selected customer for this sale
       setCustomer({
         id: newCustomer.id,
-        name: newCustomer.name,
-        phone: newCustomer.phone,
-        email: newCustomer.email,
-        address: newCustomer.address,
-        city: newCustomer.city,
-        postal_code: newCustomer.postal_code
+        name: newCustomer.name
       });
       
       // Reset form and close modal
       setNewCustomerForm({
         name: '',
-        email: '',
-        phone: '',
-        address: '',
-        city: '',
-        postal_code: '',
-        is_active: true
+        is_active: true,
+        // Educational Information
+        education_level: '',
+        year: '',
+        grade_level: '',
+        section: '',
+        strand: '',
+        college: '',
+        course: ''
       });
       setShowAddCustomerModal(false);
       
@@ -220,30 +447,6 @@ const Sales: React.FC = () => {
     setChangeAmount(newChange);
   }, [saleItems, discountAmount, taxRate, paidAmount]);
 
-  // Add product to sale
-  const addToSale = (product: Product) => {
-    const existingItem = saleItems.find(item => item.id === product.id);
-    const price = product.selling_price || product.price;
-    
-    if (existingItem) {
-      setSaleItems(prev => prev.map(item => 
-        item.id === product.id 
-          ? { ...item, quantity: Math.min(item.quantity + 1, item.stock) }
-          : item
-      ));
-    } else {
-      setSaleItems(prev => [...prev, {
-        id: product.id,
-        name: product.name,
-        price: price,
-        quantity: 1,
-        stock: product.stock_quantity,
-        total: price,
-        image: product.image
-      }]);
-    }
-  };
-
   // Remove item from sale
   const removeFromSale = (productId: number) => {
     setSaleItems(prev => prev.filter(item => item.id !== productId));
@@ -266,7 +469,7 @@ const Sales: React.FC = () => {
   // Clear sale
   const clearSale = () => {
     setSaleItems([]);
-    setCustomer({ name: '', phone: '', email: '' });
+    setCustomer({ name: '' });
     setDiscountAmount(0);
     setPaidAmount(0);
   };
@@ -276,24 +479,75 @@ const Sales: React.FC = () => {
     if (saleItems.length === 0) return;
     
     try {
-      // Create order data
-      const orderData = {
-        customer_id: customer.name ? undefined : undefined, // For walk-in customers
-        items: saleItems.map(item => ({
-          product_id: item.id,
-          qty: item.quantity,
-          price: item.price
-        })),
-        paid_amount: paidAmount,
-        discount_amount: discountAmount,
-        tax_amount: taxAmount,
-        notes: customer.name ? `Customer: ${customer.name}, Phone: ${customer.phone}` : 'Walk-in customer',
-        order_status: 'completed' as const
-      };
+      let backendCustomerId = null;
+      let backendOrderId = null;
+      const educationalSummary = customer.name ? createEducationalSummary(customer) : '';
 
-      // Update product stock quantities
+      // Try to create/update customer in backend first
+      if (customer.name) {
+        try {
+          if (customer.id) {
+            // Update existing customer
+            await customersAPI.update(customer.id, {
+              name: customer.name,
+              email: customer.email,
+              phone: customer.phone,
+              education_level: customer.education_level,
+              year: customer.year,
+              grade_level: customer.grade_level,
+              section: customer.section,
+              strand: customer.strand,
+              college: customer.college,
+              course: customer.course
+            });
+            backendCustomerId = customer.id;
+          } else {
+            // Create new customer
+            const customerResponse = await customersAPI.create({
+              name: customer.name,
+              email: customer.email,
+              phone: customer.phone,
+              education_level: customer.education_level,
+              year: customer.year,
+              grade_level: customer.grade_level,
+              section: customer.section,
+              strand: customer.strand,
+              college: customer.college,
+              course: customer.course
+            });
+            backendCustomerId = customerResponse.data.id;
+          }
+        } catch (customerError) {
+          console.log('Customer API failed, using localStorage fallback:', customerError);
+        }
+      }
+
+      // Try to create order in backend
+      try {
+        const orderData = {
+          customer_id: backendCustomerId,
+          items: saleItems.map(item => ({
+            product_id: item.id,
+            qty: item.quantity,
+            price: item.price
+          })),
+          paid_amount: paidAmount,
+          discount_amount: discountAmount,
+          tax_amount: taxAmount,
+          notes: customer.name ? `Customer: ${customer.name}` : 'Walk-in customer',
+          order_status: 'completed' as const
+        };
+
+        const orderResponse = await ordersAPI.create(orderData);
+        backendOrderId = orderResponse.data.id;
+        console.log('Order created in backend successfully:', backendOrderId);
+      } catch (orderError) {
+        console.log('Order API failed, using localStorage fallback:', orderError);
+      }
+
+      // Update product stock quantities (localStorage fallback)
       const existingProducts = JSON.parse(localStorage.getItem('products') || '[]');
-      const updatedProducts = existingProducts.map((product: any) => {
+      const updatedProducts = existingProducts.map((product: Product) => {
         const saleItem = saleItems.find(item => item.id === product.id);
         if (saleItem) {
           return {
@@ -305,34 +559,47 @@ const Sales: React.FC = () => {
       });
       localStorage.setItem('products', JSON.stringify(updatedProducts));
 
-      // Update customer data if customer is selected
-      if (customer.id) {
-        const existingCustomers = JSON.parse(localStorage.getItem('customers') || '[]');
-        const updatedCustomers = existingCustomers.map((c: any) => {
-          if (c.id === customer.id) {
-            return {
-              ...c,
-              total_orders: (c.total_orders || 0) + 1,
-              total_spent: (c.total_spent || 0) + total,
-              last_order_date: new Date().toISOString().split('T')[0]
-            };
-          }
-          return c;
-        });
-        localStorage.setItem('customers', JSON.stringify(updatedCustomers));
+      // Update customer data in localStorage (fallback/sync)
+      if (customer.id || customer.name) {
+        const existingCustomers = JSON.parse(localStorage.getItem('customers') || '[]') as Customer[];
+        const customerIndex = existingCustomers.findIndex(c => c.id === customer.id || c.name === customer.name);
+        
+        if (customerIndex >= 0) {
+          // Update existing customer
+          existingCustomers[customerIndex] = {
+            ...existingCustomers[customerIndex],
+            ...customer,
+            total_orders: (existingCustomers[customerIndex].total_orders || 0) + 1,
+            total_spent: (existingCustomers[customerIndex].total_spent || 0) + total,
+            last_order_date: new Date().toISOString().split('T')[0]
+          };
+        } else if (customer.name) {
+          // Add new customer
+          const newCustomer = {
+            ...customer,
+            id: backendCustomerId || Date.now(),
+            total_orders: 1,
+            total_spent: total,
+            last_order_date: new Date().toISOString().split('T')[0],
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          existingCustomers.push(newCustomer);
+        }
+        localStorage.setItem('customers', JSON.stringify(existingCustomers));
       }
 
-      // Save order to localStorage
+      // Save order to localStorage (fallback/sync)
       const existingOrders = JSON.parse(localStorage.getItem('orders') || '[]');
       const newOrder = {
-        id: Date.now(),
-        order_number: `ORD-${Date.now()}`,
-        customer_id: customer.id || null,
+        id: backendOrderId || Date.now(),
+        order_number: `ORD-${backendOrderId || Date.now()}`,
+        customer_id: backendCustomerId || customer.id || null,
         customer: customer.name ? { 
-          id: customer.id,
-          name: customer.name, 
-          phone: customer.phone,
-          email: customer.email
+          id: backendCustomerId || customer.id,
+          name: customer.name,
+          educational_summary: educationalSummary
         } : null,
         user: {
           id: 1,
@@ -347,7 +614,7 @@ const Sales: React.FC = () => {
         due_amount: Math.max(0, total - paidAmount),
         payment_status: paidAmount >= total ? 'paid' : (paidAmount > 0 ? 'partial' : 'pending'),
         order_status: 'completed',
-        notes: customer.name ? `Customer: ${customer.name}, Phone: ${customer.phone}` : 'Walk-in customer',
+        notes: customer.name ? `Customer: ${customer.name}` : 'Walk-in customer',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -362,7 +629,10 @@ const Sales: React.FC = () => {
       setShowPaymentModal(false);
       
       // Show success message
-      alert('Sale processed successfully!');
+      const message = backendOrderId 
+        ? 'Sale processed successfully and saved to database!' 
+        : 'Sale processed successfully (saved locally)!';
+      alert(message);
       
       // Trigger orders page refresh
       window.dispatchEvent(new Event('ordersUpdated'));
@@ -743,7 +1013,7 @@ const Sales: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className={`${
             theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'
-          } p-6 rounded-lg w-96 max-h-[90vh] overflow-y-auto border shadow-lg`}>
+          } p-6 rounded-lg w-[600px] max-w-[90vw] max-h-[90vh] overflow-y-auto border shadow-lg`}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Add New Customer</h3>
               <button
@@ -774,88 +1044,169 @@ const Sales: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className={`block text-sm font-medium ${
-                  theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                }`}>Email *</label>
-                <input
-                  type="email"
-                  required
-                  value={newCustomerForm.email}
-                  onChange={(e) => setNewCustomerForm({...newCustomerForm, email: e.target.value})}
-                  className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                    theme === 'dark' 
-                      ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
-                      : 'bg-white border-gray-300 text-gray-900'
-                  }`}
-                />
-              </div>
 
-              <div>
-                <label className={`block text-sm font-medium ${
-                  theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                }`}>Phone *</label>
-                <input
-                  type="tel"
-                  required
-                  value={newCustomerForm.phone}
-                  onChange={(e) => setNewCustomerForm({...newCustomerForm, phone: e.target.value})}
-                  className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                    theme === 'dark' 
-                      ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
-                      : 'bg-white border-gray-300 text-gray-900'
-                  }`}
-                />
-              </div>
+              {/* Educational Information Section */}
+              <div className={`border-t pt-4 mt-4 ${theme === 'dark' ? 'border-gray-600' : 'border-gray-300'}`}>
+                <h4 className={`text-md font-semibold mb-3 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}>
+                  Educational Information
+                </h4>
 
-              <div>
-                <label className={`block text-sm font-medium ${
-                  theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                }`}>Address</label>
-                <input
-                  type="text"
-                  value={newCustomerForm.address}
-                  onChange={(e) => setNewCustomerForm({...newCustomerForm, address: e.target.value})}
-                  className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                    theme === 'dark' 
-                      ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
-                      : 'bg-white border-gray-300 text-gray-900'
-                  }`}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+                {/* Education Level */}
+                <div className="mb-4">
                   <label className={`block text-sm font-medium ${
                     theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                  }`}>City</label>
-                  <input
-                    type="text"
-                    value={newCustomerForm.city}
-                    onChange={(e) => setNewCustomerForm({...newCustomerForm, city: e.target.value})}
+                  }`}>Education Level</label>
+                  <select
+                    value={newCustomerForm.education_level}
+                    onChange={(e) => handleEducationLevelChange(e.target.value)}
                     className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
                       theme === 'dark' 
-                        ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
+                        ? 'bg-gray-700 border-gray-600 text-gray-100' 
                         : 'bg-white border-gray-300 text-gray-900'
                     }`}
-                  />
+                  >
+                    <option value="">Select Education Level</option>
+                    {EDUCATION_LEVELS.map(level => (
+                      <option key={level} value={level}>{level}</option>
+                    ))}
+                  </select>
                 </div>
-                
-                <div>
-                  <label className={`block text-sm font-medium ${
-                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                  }`}>Postal Code</label>
-                  <input
-                    type="text"
-                    value={newCustomerForm.postal_code}
-                    onChange={(e) => setNewCustomerForm({...newCustomerForm, postal_code: e.target.value})}
-                    className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                      theme === 'dark' 
-                        ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
-                        : 'bg-white border-gray-300 text-gray-900'
-                    }`}
-                  />
-                </div>
+
+                {/* Year (for College only) */}
+                {newCustomerForm.education_level === 'College' && (
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>Year</label>
+                    <input
+                      type="text"
+                      value={newCustomerForm.year}
+                      onChange={(e) => setNewCustomerForm({...newCustomerForm, year: e.target.value})}
+                      placeholder="e.g 1st year"
+                      className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                        theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                  </div>
+                )}
+
+                {/* Grade Level for Elementary, High School, and Senior High School */}
+                {(newCustomerForm.education_level === 'Elementary' || newCustomerForm.education_level === 'High School' || newCustomerForm.education_level === 'Senior High School') && (
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>Grade Level</label>
+                    <select
+                      value={newCustomerForm.grade_level}
+                      onChange={(e) => setNewCustomerForm({...newCustomerForm, grade_level: e.target.value})}
+                      className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                        theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    >
+                      <option value="">Select Grade Level</option>
+                      {getAvailableGrades(newCustomerForm.education_level).map(grade => (
+                        <option key={grade} value={grade}>{grade}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Section for High School and College */}
+                {(newCustomerForm.education_level === 'High School' || newCustomerForm.education_level === 'College') && (
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>Section</label>
+                    <select
+                      value={newCustomerForm.section}
+                      onChange={(e) => setNewCustomerForm({...newCustomerForm, section: e.target.value})}
+                      className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                        theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    >
+                      <option value="">Select Section</option>
+                      {getAvailableSections(newCustomerForm.education_level).map(section => (
+                        <option key={section} value={section}>{section}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Strand for Senior High School */}
+                {newCustomerForm.education_level === 'Senior High School' && (
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>Strand</label>
+                    <select
+                      value={newCustomerForm.strand}
+                      onChange={(e) => setNewCustomerForm({...newCustomerForm, strand: e.target.value})}
+                      className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                        theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    >
+                      <option value="">Select Strand</option>
+                      {SENIOR_HIGH_STRANDS.map(strand => (
+                        <option key={strand} value={strand}>{strand}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* College and Course for College level */}
+                {newCustomerForm.education_level === 'College' && (
+                  <>
+                    <div className="mb-4">
+                      <label className={`block text-sm font-medium ${
+                        theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      }`}>College</label>
+                      <select
+                        value={newCustomerForm.college}
+                        onChange={(e) => handleCollegeChange(e.target.value)}
+                        className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                          theme === 'dark' 
+                            ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
+                      >
+                        <option value="">Select College</option>
+                        {getAvailableColleges().map(college => (
+                          <option key={college} value={college}>{college}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {newCustomerForm.college && (
+                      <div className="mb-4">
+                        <label className={`block text-sm font-medium ${
+                          theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                        }`}>Course</label>
+                        <select
+                          value={newCustomerForm.course}
+                          onChange={(e) => setNewCustomerForm({...newCustomerForm, course: e.target.value})}
+                          className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                            theme === 'dark' 
+                              ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                              : 'bg-white border-gray-300 text-gray-900'
+                          }`}
+                        >
+                          <option value="">Select Course</option>
+                          {getAvailableCourses(newCustomerForm.college).map(course => (
+                            <option key={course} value={course}>{course}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
               <div className="flex items-center">

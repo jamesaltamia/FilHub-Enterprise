@@ -65,15 +65,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Restore session on mount
   useEffect(() => {
+    console.log('AuthContext useEffect - token:', token, 'user:', user);
+    
     if (token && !user) {
       // For demo tokens, don't fetch from API
       if (token.startsWith('demo_token_')) {
+        console.log('Demo token found, setting loading to false');
         setIsLoading(false);
         return;
       }
-    } else {
-      setIsLoading(false);
     }
+    
+    // Always set loading to false after checking
+    console.log('Setting isLoading to false');
+    setIsLoading(false);
   }, [token, user]);
 
   const login = async (email: string, password: string) => {

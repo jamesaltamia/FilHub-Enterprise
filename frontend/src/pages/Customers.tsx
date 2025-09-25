@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { customersAPI } from '../services/api';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface Customer {
   id: number;
   name: string;
-  email: string;
-  phone: string;
+  email?: string;
+  phone?: string;
   address?: string;
   city?: string;
   postal_code?: string;
@@ -16,11 +17,112 @@ interface Customer {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // Educational Information
+  education_level?: string;
+  year?: string;
+  grade_level?: string;
+  section?: string;
+  strand?: string;
+  college?: string;
+  course?: string;
 }
 
 const Customers: React.FC = () => {
   const { role } = useAuth();
   const { theme } = useTheme();
+
+  // Helper function to create educational summary
+  const createEducationalSummary = (customer: Customer) => {
+    if (!customer.education_level) return { education: 'N/A', details: 'N/A' };
+    
+    switch (customer.education_level) {
+      case 'Kinder': {
+        return { education: 'Kinder', details: 'Kinder' };
+      }
+      
+      case 'Elementary': {
+        return { 
+          education: 'Elementary', 
+          details: customer.grade_level ? customer.grade_level : 'Elementary' 
+        };
+      }
+      
+      case 'High School': {
+        return { 
+          education: 'High School', 
+          details: customer.grade_level ? customer.grade_level : 'High School' 
+        };
+      }
+      
+      case 'Senior High School': {
+        const grade = customer.grade_level ? customer.grade_level.replace('Grade ', '') : '';
+        const strand = customer.strand || '';
+        return { 
+          education: 'Senior High School', 
+          details: strand && grade ? `${strand}-${grade}` : 'Senior High School' 
+        };
+      }
+      
+      case 'College': {
+        const course = customer.course || '';
+        const year = customer.year || '';
+        
+        // Create course abbreviation
+        let courseAbbrev = '';
+        if (course.includes('Bachelor of Science in Computer Science')) courseAbbrev = 'BSCS';
+        else if (course.includes('Bachelor of Science in Information Technology')) courseAbbrev = 'BSIT';
+        else if (course.includes('Bachelor of Science in Accountancy')) courseAbbrev = 'BSA';
+        else if (course.includes('Bachelor of Science in Business Administration')) {
+          if (course.includes('Human Resource Management')) courseAbbrev = 'BSBA-HRM';
+          else if (course.includes('Financial Management')) courseAbbrev = 'BSBA-FM';
+          else if (course.includes('Marketing Management')) courseAbbrev = 'BSBA-MM';
+          else if (course.includes('Operations Management')) courseAbbrev = 'BSBA-OM';
+          else courseAbbrev = 'BSBA';
+        }
+        else if (course.includes('Bachelor of Science in Entrepreneurship')) courseAbbrev = 'BSE';
+        else if (course.includes('Bachelor of Science in Criminology')) courseAbbrev = 'BSCrim';
+        else if (course.includes('Bachelor of Science in Electronics Engineering')) courseAbbrev = 'BSEE';
+        else if (course.includes('Bachelor of Science in Hospitality Management')) courseAbbrev = 'BSHM';
+        else if (course.includes('Bachelor of Science in Tourism Management')) courseAbbrev = 'BSTM';
+        else if (course.includes('Bachelor of Science in Nursing')) courseAbbrev = 'BSN';
+        else if (course.includes('Bachelor of Elementary Education')) courseAbbrev = 'BEEd';
+        else if (course.includes('Bachelor of Secondary Education')) {
+          if (course.includes('English')) courseAbbrev = 'BSEd-Eng';
+          else if (course.includes('Mathematics')) courseAbbrev = 'BSEd-Math';
+          else if (course.includes('Filipino')) courseAbbrev = 'BSEd-Fil';
+          else if (course.includes('Science')) courseAbbrev = 'BSEd-Sci';
+          else if (course.includes('Social Studies')) courseAbbrev = 'BSEd-SS';
+          else courseAbbrev = 'BSEd';
+        }
+        else if (course.includes('Bachelor of Culture and Arts Education')) courseAbbrev = 'BCAEd';
+        else if (course.includes('Bachelor of Early Childhood Education')) courseAbbrev = 'BECEd';
+        else if (course.includes('Bachelor of Physical Education')) courseAbbrev = 'BPEd';
+        else if (course.includes('Bachelor of Special Needs Education')) courseAbbrev = 'BSNEd';
+        else if (course.includes('Bachelor of Arts') && course.includes('Theology')) courseAbbrev = 'BA-Theo';
+        else if (course.includes('Bachelor of Arts') && course.includes('Political Science')) courseAbbrev = 'BA-PolSci';
+        else if (course.includes('Bachelor of Science in Biology')) courseAbbrev = 'BS-Bio';
+        else if (course.includes('Bachelor of Science in Psychology')) courseAbbrev = 'BS-Psych';
+        else if (course.includes('Bachelor of Science in Social Work')) courseAbbrev = 'BSSW';
+        else courseAbbrev = course ? 'College' : 'College';
+        
+        // Extract year number
+        let yearNum = '';
+        if (year.includes('1st')) yearNum = '1';
+        else if (year.includes('2nd')) yearNum = '2';
+        else if (year.includes('3rd')) yearNum = '3';
+        else if (year.includes('4th')) yearNum = '4';
+        else if (year.includes('5th')) yearNum = '5';
+        
+        return { 
+          education: 'College', 
+          details: courseAbbrev && yearNum ? `${courseAbbrev}-${yearNum}` : courseAbbrev || 'College' 
+        };
+      }
+      
+      default:
+        return { education: 'N/A', details: 'N/A' };
+    }
+  };
   
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,47 +147,63 @@ const Customers: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // Try localStorage first for demo mode
-      const storedCustomers = localStorage.getItem('customers');
-      if (storedCustomers) {
-        setCustomers(JSON.parse(storedCustomers));
-      } else {
-        // Demo customers for initial load
-        const demoCustomers: Customer[] = [
-          {
-            id: 1,
-            name: 'John Doe',
-            email: 'john.doe@email.com',
-            phone: '+63 912 345 6789',
-            address: '123 Main St',
-            city: 'Manila',
-            postal_code: '1000',
-            total_orders: 5,
-            total_spent: 15000,
-            last_order_date: '2024-01-15',
-            is_active: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          },
-          {
-            id: 2,
-            name: 'Jane Smith',
-            email: 'jane.smith@email.com',
-            phone: '+63 917 123 4567',
-            address: '456 Oak Ave',
-            city: 'Quezon City',
-            postal_code: '1100',
-            total_orders: 3,
-            total_spent: 8500,
-            last_order_date: '2024-01-10',
-            is_active: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
-        ];
-        setCustomers(demoCustomers);
-        localStorage.setItem('customers', JSON.stringify(demoCustomers));
+      let allCustomers = [];
+      
+      try {
+        // Try to fetch from backend API first
+        const response = await customersAPI.getAll({ per_page: 1000 });
+        if (response && response.data) {
+          allCustomers = Array.isArray(response.data.data) ? response.data.data : (Array.isArray(response.data) ? response.data : []);
+          console.log('Customers loaded from backend API:', allCustomers);
+          
+          // Sync with localStorage
+          localStorage.setItem('customers', JSON.stringify(allCustomers));
+        }
+      } catch (apiError) {
+        console.log('Backend API failed, using localStorage fallback:', apiError);
+        
+        // Fallback to localStorage
+        const storedCustomers = localStorage.getItem('customers');
+        if (storedCustomers) {
+          allCustomers = JSON.parse(storedCustomers);
+          console.log('Customers loaded from localStorage:', allCustomers);
+        } else {
+          // Demo customers for initial load
+          const demoCustomers: Customer[] = [
+            {
+              id: 1,
+              name: 'John Doe',
+              total_orders: 5,
+              total_spent: 15000,
+              last_order_date: '2024-01-15',
+              is_active: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              education_level: 'College',
+              year: '3rd year',
+              course: 'Bachelor of Science in Information Technology',
+              section: 'A'
+            },
+            {
+              id: 2,
+              name: 'Jane Smith',
+              total_orders: 3,
+              total_spent: 8500,
+              last_order_date: '2024-01-10',
+              is_active: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              education_level: 'Senior High School',
+              grade_level: 'Grade 12',
+              strand: 'STEM'
+            }
+          ];
+          allCustomers = demoCustomers;
+          localStorage.setItem('customers', JSON.stringify(demoCustomers));
+        }
       }
+      
+      setCustomers(allCustomers);
     } catch {
       setError('Failed to fetch customers');
     } finally {
@@ -103,8 +221,8 @@ const Customers: React.FC = () => {
     setSelectedCustomer(customer);
     setEditForm({
       name: customer.name,
-      email: customer.email,
-      phone: customer.phone,
+      email: customer.email || '',
+      phone: customer.phone || '',
       address: customer.address || '',
       city: customer.city || '',
       postal_code: customer.postal_code || '',
@@ -119,10 +237,23 @@ const Customers: React.FC = () => {
     if (!selectedCustomer) return;
 
     try {
-      const updatedCustomer = {
-        ...selectedCustomer,
+      const updatedCustomerData = {
         ...editForm,
         updated_at: new Date().toISOString()
+      };
+
+      // Try to update in backend first
+      try {
+        await customersAPI.update(selectedCustomer.id, updatedCustomerData);
+        console.log('Customer updated in backend successfully');
+      } catch (apiError) {
+        console.log('Backend API failed for customer update, using localStorage fallback:', apiError);
+      }
+
+      // Update locally (fallback/sync)
+      const updatedCustomer = {
+        ...selectedCustomer,
+        ...updatedCustomerData
       };
 
       const updatedCustomers = customers.map(customer =>
@@ -145,9 +276,20 @@ const Customers: React.FC = () => {
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this customer?')) {
       try {
+        // Try to delete from backend first
+        try {
+          await customersAPI.delete(id);
+          console.log('Customer deleted from backend successfully');
+        } catch (apiError) {
+          console.log('Backend API failed for customer delete, using localStorage fallback:', apiError);
+        }
+
+        // Update locally (fallback/sync)
         const updatedCustomers = customers.filter(customer => customer.id !== id);
         setCustomers(updatedCustomers);
         localStorage.setItem('customers', JSON.stringify(updatedCustomers));
+        
+        alert('Customer deleted successfully!');
       } catch {
         setError('Failed to delete customer');
       }
@@ -158,8 +300,8 @@ const Customers: React.FC = () => {
   // Filter customers based on search
   const filteredCustomers = customers.filter(customer =>
     customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.phone.includes(searchTerm)
+    (customer.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (customer.phone || '').includes(searchTerm)
   );
 
   if (loading) {
@@ -217,7 +359,7 @@ const Customers: React.FC = () => {
               </div>
               <input
                 type="text"
-                placeholder="Search customers by name, email, or phone..."
+                placeholder="Search customers by name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500'}`}
@@ -251,16 +393,16 @@ const Customers: React.FC = () => {
                     theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
                   }`}>
                     <div className="flex items-center space-x-2">
-                      <span>📞</span>
-                      <span>Contact</span>
+                      <span>🎓</span>
+                      <span>Education</span>
                     </div>
                   </th>
                   <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${
                     theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
                   }`}>
                     <div className="flex items-center space-x-2">
-                      <span>📍</span>
-                      <span>Location</span>
+                      <span>📚</span>
+                      <span>Grade/Strand/Course</span>
                     </div>
                   </th>
                   <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${
@@ -333,24 +475,16 @@ const Customers: React.FC = () => {
                     <div className={`text-sm ${
                       theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
                     }`}>
-                      {customer.email}
-                    </div>
-                    <div className={`text-sm ${
-                      theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                    }`}>
-                      {customer.phone}
+                      {createEducationalSummary(customer).education}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className={`text-sm ${
-                      theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
+                    <div className={`text-xs font-medium px-2 py-1 rounded-full inline-block ${
+                      theme === 'dark' 
+                        ? 'bg-blue-900 text-blue-200 border border-blue-700' 
+                        : 'bg-blue-100 text-blue-800 border border-blue-200'
                     }`}>
-                      {customer.city || 'N/A'}
-                    </div>
-                    <div className={`text-sm ${
-                      theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                    }`}>
-                      {customer.postal_code || ''}
+                      {createEducationalSummary(customer).details}
                     </div>
                   </td>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm ${
@@ -444,24 +578,47 @@ const Customers: React.FC = () => {
                 {/* Customer Info */}
                 <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <h4 className={`font-semibold mb-3 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}>
-                    Contact Information
+                    Educational Information
                   </h4>
                   <div className="space-y-2">
                     <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                      <span className="font-medium">Email:</span> {selectedCustomer.email}
+                      <span className="font-medium">Education Level:</span> {selectedCustomer.education_level || 'N/A'}
                     </p>
-                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                      <span className="font-medium">Phone:</span> {selectedCustomer.phone}
-                    </p>
-                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                      <span className="font-medium">Address:</span> {selectedCustomer.address || 'N/A'}
-                    </p>
-                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                      <span className="font-medium">City:</span> {selectedCustomer.city || 'N/A'}
-                    </p>
-                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                      <span className="font-medium">Postal Code:</span> {selectedCustomer.postal_code || 'N/A'}
-                    </p>
+                    {selectedCustomer.grade_level && (
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <span className="font-medium">Grade Level:</span> {selectedCustomer.grade_level}
+                      </p>
+                    )}
+                    {selectedCustomer.strand && (
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <span className="font-medium">Strand:</span> {selectedCustomer.strand}
+                      </p>
+                    )}
+                    {selectedCustomer.course && (
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <span className="font-medium">Course:</span> {selectedCustomer.course}
+                      </p>
+                    )}
+                    {selectedCustomer.year && (
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <span className="font-medium">Year:</span> {selectedCustomer.year}
+                      </p>
+                    )}
+                    {selectedCustomer.section && (
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <span className="font-medium">Section:</span> {selectedCustomer.section}
+                      </p>
+                    )}
+                    <div className="mt-3">
+                      <span className="font-medium">Summary: </span>
+                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                        theme === 'dark' 
+                          ? 'bg-blue-900 text-blue-200 border border-blue-700' 
+                          : 'bg-blue-100 text-blue-800 border border-blue-200'
+                      }`}>
+                        {createEducationalSummary(selectedCustomer).details}
+                      </span>
+                    </div>
                   </div>
                 </div>
 

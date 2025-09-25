@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { productsAPI } from '../services/api';
+import { productsAPI, ordersAPI } from '../services/api';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface Order {
@@ -12,11 +12,18 @@ interface Order {
     name: string;
     email?: string;
     phone?: string;
+    educational_summary?: string;
   };
   user?: {
     id: number;
     name: string;
   };
+  items?: Array<{
+    id: number;
+    name: string;
+    quantity: number;
+    price: number;
+  }>;
   subtotal: number;
   discount_amount: number;
   tax_amount: number;
@@ -121,14 +128,31 @@ const Orders: React.FC = () => {
     }
   };
 
-  // Load orders from localStorage and set up real-time updates
+  // Load orders from backend API with localStorage fallback
   useEffect(() => {
-    const loadOrders = () => {
-      const savedOrders = JSON.parse(localStorage.getItem('orders') || '[]');
-      console.log('Loading orders from localStorage:', savedOrders);
+    const loadOrders = async () => {
+      let allOrders = [];
+      
+      try {
+        // Try to fetch from backend API first
+        const response = await ordersAPI.getAll({ per_page: 1000 });
+        if (response && response.data) {
+          allOrders = Array.isArray(response.data.data) ? response.data.data : (Array.isArray(response.data) ? response.data : []);
+          console.log('Orders loaded from backend API:', allOrders);
+          
+          // Sync with localStorage
+          localStorage.setItem('orders', JSON.stringify(allOrders));
+        }
+      } catch (apiError) {
+        console.log('Backend API failed, using localStorage fallback:', apiError);
+        // Fallback to localStorage
+        const savedOrders = JSON.parse(localStorage.getItem('orders') || '[]');
+        allOrders = savedOrders;
+        console.log('Orders loaded from localStorage:', allOrders);
+      }
       
       // Apply filters
-      let filteredOrders = savedOrders;
+      let filteredOrders = allOrders;
       
       if (searchTerm) {
         filteredOrders = filteredOrders.filter((order: any) =>
@@ -212,7 +236,15 @@ const Orders: React.FC = () => {
   // Handle status update
   const handleStatusUpdate = async (orderId: number, newStatus: string) => {
     try {
-      // Update locally for demo mode
+      // Try to update in backend first
+      try {
+        await ordersAPI.updateStatus(orderId, newStatus as 'pending' | 'processing' | 'completed' | 'cancelled');
+        console.log('Order status updated in backend successfully');
+      } catch (apiError) {
+        console.log('Backend API failed for status update, using localStorage fallback:', apiError);
+      }
+
+      // Update locally (fallback/sync)
       const updatedOrders = orders.map(order => 
         order.id === orderId 
           ? { ...order, order_status: newStatus as 'pending' | 'processing' | 'completed' | 'cancelled' }
@@ -234,7 +266,15 @@ const Orders: React.FC = () => {
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this order?')) {
       try {
-        // Remove from local orders list for demo mode
+        // Try to delete from backend first
+        try {
+          await ordersAPI.delete(id);
+          console.log('Order deleted from backend successfully');
+        } catch (apiError) {
+          console.log('Backend API failed for order delete, using localStorage fallback:', apiError);
+        }
+
+        // Update locally (fallback/sync)
         const orderToDelete = orders.find(order => order.id === id);
         const updatedOrders = orders.filter(order => order.id !== id);
         setOrders(updatedOrders);
@@ -252,6 +292,8 @@ const Orders: React.FC = () => {
             outstanding_amount: Math.max(0, orderStats.outstanding_amount - orderToDelete.due_amount)
           });
         }
+        
+        alert('Order deleted successfully!');
       } catch (err) {
         setError('Failed to delete order');
         console.error('Error deleting order:', err);
@@ -268,7 +310,15 @@ const Orders: React.FC = () => {
       const newDueAmount = Math.max(0, selectedOrder.total_amount - newPaidAmount);
       const newPaymentStatus = newDueAmount === 0 ? 'paid' : (newPaidAmount > 0 ? 'partial' : 'pending');
       
-      // Update locally for demo mode
+      // Try to update in backend first
+      try {
+        await ordersAPI.updatePayment(selectedOrder.id, newPaidAmount);
+        console.log('Payment updated in backend successfully');
+      } catch (apiError) {
+        console.log('Backend API failed for payment update, using localStorage fallback:', apiError);
+      }
+      
+      // Update locally (fallback/sync)
       const updatedOrders = orders.map(order => 
         order.id === selectedOrder.id 
           ? { 
@@ -400,9 +450,6 @@ const Orders: React.FC = () => {
       <body>
         <div class="header">
           <h2>FILHUB ENTERPRISE</h2>
-          <p>📍 Your Business Address</p>
-          <p>📞 Contact: +63 XXX XXX XXXX</p>
-          <p>📧 Email: info@filhub.com</p>
         </div>
         
         <div class="order-info">
@@ -410,7 +457,8 @@ const Orders: React.FC = () => {
           <div><strong>Date:</strong> <span>${new Date(order.created_at).toLocaleDateString()}</span></div>
           <div><strong>Time:</strong> <span>${new Date(order.created_at).toLocaleTimeString()}</span></div>
           <div><strong>Status:</strong> <span>${order.order_status.toUpperCase()}</span></div>
-          ${order.customer_name ? `<div><strong>Customer:</strong> <span>${order.customer_name}</span></div>` : ''}
+          ${order.customer?.name ? `<div><strong>Customer:</strong> <span>${order.customer.name}</span></div>` : ''}
+          ${order.customer?.educational_summary ? `<div><strong>Education:</strong> <span>${order.customer.educational_summary}</span></div>` : ''}
         </div>
         
         <div class="items">
@@ -439,9 +487,8 @@ const Orders: React.FC = () => {
         </div>
         
         <div class="footer">
-          <div class="thank-you">THANK YOU FOR YOUR BUSINESS!</div>
+          <div class="thank-you">THANK YOU FOR PURCHASING!</div>
           <p>Please keep this receipt for your records</p>
-          <p>Visit us again soon! 😊</p>
           <p style="margin-top: 15px; font-size: 9px;">
             Powered by FilHub Enterprise System<br>
             ${new Date().toLocaleString()}
@@ -900,6 +947,15 @@ const Orders: React.FC = () => {
                     <div className={`text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                       {order.customer?.name || 'Walk-in Customer'}
                     </div>
+                    {order.customer?.educational_summary && (
+                      <div className={`text-xs font-medium px-2 py-1 rounded-full inline-block mt-1 ${
+                        theme === 'dark' 
+                          ? 'bg-blue-900 text-blue-200 border border-blue-700' 
+                          : 'bg-blue-100 text-blue-800 border border-blue-200'
+                      }`}>
+                        {order.customer.educational_summary}
+                      </div>
+                    )}
                     {order.customer?.phone && (
                       <div className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{order.customer.phone}</div>
                     )}
@@ -1035,6 +1091,15 @@ const Orders: React.FC = () => {
                 <div>
                   <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Customer</p>
                   <p className={`text-lg ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>{selectedOrder.customer?.name || 'Walk-in Customer'}</p>
+                  {selectedOrder.customer?.educational_summary && (
+                    <div className={`text-xs font-medium px-2 py-1 rounded-full inline-block mt-1 ${
+                      theme === 'dark' 
+                        ? 'bg-blue-900 text-blue-200 border border-blue-700' 
+                        : 'bg-blue-100 text-blue-800 border border-blue-200'
+                    }`}>
+                      {selectedOrder.customer.educational_summary}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Phone</p>
