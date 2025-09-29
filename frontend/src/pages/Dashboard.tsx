@@ -206,7 +206,7 @@ const Dashboard: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           <StatCard
             title="Total Revenue"
-            value={`₱${stats.totalSales.toLocaleString()}`}
+            value={`₱${Number(stats.totalSales).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             icon="💰"
             color="border-yellow-500"
             gradient={theme === 'dark' ? 'bg-yellow-900' : 'bg-gradient-to-br from-yellow-100 to-orange-100'}
@@ -227,7 +227,7 @@ const Dashboard: React.FC = () => {
           />
           <StatCard
             title="Today's Sales"
-            value={`₱${stats.todaysSales.toLocaleString()}`}
+            value={`₱${Number(stats.todaysSales).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             icon="📈"
             color="border-green-500"
             gradient={theme === 'dark' ? 'bg-green-900' : 'bg-gradient-to-br from-green-100 to-emerald-100'}
@@ -344,10 +344,12 @@ const Dashboard: React.FC = () => {
                       )}
                       <div>
                         <p className="font-medium text-blue-900 dark:text-blue-400">Order #{order.order_number}</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">₱{order.total_amount}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          ₱{Number(order.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
                         {order.paid_amount && order.paid_amount > order.total_amount && (
                           <p className="text-xs text-green-600 dark:text-green-400">
-                            Change: ₱{(order.paid_amount - order.total_amount).toFixed(2)}
+                            Change: ₱{(Number(order.paid_amount) - Number(order.total_amount)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </p>
                         )}
                       </div>

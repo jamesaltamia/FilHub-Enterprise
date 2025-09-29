@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { api } from '../utils/api';
+import api from '../services/api';
 
 interface Product {
   id: number;
   name: string;
   description?: string;
   sku: string;
-  price: number;
-  cost: number;
+  barcode?: string;
+  cost_price: number;
+  selling_price: number;
+  discount_percentage?: number;
+  discount_amount?: number;
   stock_quantity: number;
-  min_stock_level: number;
+  low_stock_alert: number;
   category_id?: number;
   category?: {
     id: number;
@@ -29,7 +32,7 @@ interface Category {
 }
 
 const Products: React.FC = () => {
-  const { token, role, user } = useAuth();
+  const { token, role } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,9 +45,9 @@ const Products: React.FC = () => {
     description: '',
     sku: '',
     category_id: '',
-    price: '',
-    cost: '',
-    min_stock_level: '',
+    selling_price: '',
+    cost_price: '',
+    low_stock_alert: '',
     stock_quantity: '',
     image: '',
     is_active: true
@@ -57,9 +60,7 @@ const Products: React.FC = () => {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      console.log('Fetching products with token:', token ? 'Token exists' : 'No token');
-      const response = await api.get('/products', token || undefined);
-      console.log('Products response:', response);
+      const response = await api.get('/products');
       
       // Handle different response structures
       let productsData = [];
@@ -71,7 +72,6 @@ const Products: React.FC = () => {
         productsData = response;
       }
       
-      console.log('Setting products:', productsData);
       setProducts(productsData);
       
       // Save products to localStorage for Dashboard real-time updates
@@ -87,7 +87,7 @@ const Products: React.FC = () => {
   // Fetch categories
   const fetchCategories = async () => {
     try {
-      const response = await api.get('/categories', token || undefined);
+      const response = await api.get('/categories');
       setCategories(response.data);
     } catch (err) {
       console.error('Error fetching categories:', err);
@@ -95,12 +95,9 @@ const Products: React.FC = () => {
   };
 
   useEffect(() => {
-    console.log('Products useEffect - token:', token ? 'Token exists' : 'No token');
     if (token) {
       fetchProducts();
       fetchCategories();
-    } else {
-      console.log('No token available, skipping API calls');
     }
   }, [token]);
 
@@ -108,8 +105,6 @@ const Products: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null); // Clear any previous errors
-    console.log('Form submitted');
-    console.log('Form data:', formData);
     
     try {
       let imageUrl = '';
@@ -120,20 +115,15 @@ const Products: React.FC = () => {
         formDataUpload.append('image', selectedFile);
         
         try {
-          console.log('Uploading image file:', selectedFile.name, selectedFile.size);
-          const uploadResponse = await api.post('/upload-image', formDataUpload, token || undefined);
-          console.log('Upload response:', uploadResponse);
+          const uploadResponse = await api.post('/upload-image', formDataUpload);
           
           // Handle the new API response format
-          if (uploadResponse.success && uploadResponse.data) {
-            imageUrl = uploadResponse.data.url;
-            console.log('Image uploaded successfully, URL:', imageUrl);
+          if (uploadResponse.data.success && uploadResponse.data.data) {
+            imageUrl = uploadResponse.data.data.url;
           } else {
-            console.error('Upload response indicates failure:', uploadResponse);
-            throw new Error(uploadResponse.message || 'Upload failed');
+            throw new Error(uploadResponse.data.message || 'Upload failed');
           }
         } catch (uploadError: any) {
-          console.error('Image upload failed:', uploadError);
           setError(`Failed to upload image: ${uploadError?.message || 'Unknown error'}. Please try again.`);
           return;
         }
@@ -146,9 +136,9 @@ const Products: React.FC = () => {
         description: formData.description || '',
         sku: formData.sku || '',
         category_id: formData.category_id ? parseInt(formData.category_id) || 0 : 0,
-        price: parseFloat(formData.price) || 0,
-        cost: parseFloat(formData.cost) || 0,
-        min_stock_level: parseInt(formData.min_stock_level) || 0,
+        selling_price: parseFloat(formData.selling_price) || 0,
+        cost_price: parseFloat(formData.cost_price) || 0,
+        low_stock_alert: parseInt(formData.low_stock_alert) || 0,
         stock_quantity: parseInt(formData.stock_quantity) || 0,
         image: imageUrl,
         is_active: formData.is_active
@@ -159,31 +149,19 @@ const Products: React.FC = () => {
         setError('Name and SKU are required');
         return;
       }
-      if (isNaN(productData.price) || productData.price < 0) {
-        setError('Valid price is required');
+      if (isNaN(productData.selling_price) || productData.selling_price < 0) {
+        setError('Valid selling price is required');
         return;
       }
-      if (isNaN(productData.cost) || productData.cost < 0) {
-        setError('Valid cost is required');
+      if (isNaN(productData.cost_price) || productData.cost_price < 0) {
+        setError('Valid cost price is required');
         return;
       }
-
-      console.log('Processed product data:', productData);
-      console.log('Token for API call:', token ? 'Token exists' : 'No token');
 
       if (editingProduct) {
-        console.log('Updating existing product:', editingProduct.id);
-        console.log('Product data being sent:', productData);
-        const response = await api.put(`/products/${editingProduct.id}`, productData, token || undefined);
-        console.log('Product update response:', response);
       } else {
-        console.log('Creating new product');
-        console.log('Product data being sent:', productData);
-        const response = await api.post('/products', productData, token || undefined);
-        console.log('Product creation response:', response);
       }
 
-      console.log('Product saved successfully');
       setShowModal(false);
       setEditingProduct(null);
       resetForm();
@@ -194,12 +172,6 @@ const Products: React.FC = () => {
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to save product';
       setError(errorMessage);
-      console.error('Error saving product:', err);
-      console.error('Error details:', {
-        message: err?.message,
-        response: err?.response,
-        status: err?.status
-      });
     }
   };
 
@@ -211,9 +183,9 @@ const Products: React.FC = () => {
       description: product.description || '',
       sku: product.sku,
       category_id: product.category_id?.toString() || '',
-      price: product.price.toString(),
-      cost: product.cost.toString(),
-      min_stock_level: product.min_stock_level.toString(),
+      selling_price: product.selling_price.toString(),
+      cost_price: product.cost_price.toString(),
+      low_stock_alert: product.low_stock_alert.toString(),
       stock_quantity: product.stock_quantity.toString(),
       image: product.image || '',
       is_active: product.is_active
@@ -228,9 +200,7 @@ const Products: React.FC = () => {
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
-        console.log('Deleting product with ID:', id);
-        const response = await api.delete(`/products/${id}`, token || undefined);
-        console.log('Delete response:', response);
+        await api.delete(`/products/${id}`);
         
         // Immediately remove from local state
         setProducts(prevProducts => {
@@ -239,16 +209,9 @@ const Products: React.FC = () => {
           localStorage.setItem('products', JSON.stringify(updatedProducts));
           return updatedProducts;
         });
-        console.log('Product removed from local state');
         
       } catch (err: any) {
         setError('Failed to delete product');
-        console.error('Error deleting product:', err);
-        console.error('Delete error details:', {
-          message: err?.message,
-          response: err?.response,
-          status: err?.status
-        });
       }
     }
   };
@@ -260,9 +223,9 @@ const Products: React.FC = () => {
       description: '',
       sku: '',
       category_id: '',
-      price: '',
-      cost: '',
-      min_stock_level: '',
+      selling_price: '',
+      cost_price: '',
+      low_stock_alert: '',
       stock_quantity: '',
       image: '',
       is_active: true
@@ -281,11 +244,6 @@ const Products: React.FC = () => {
 
   // Handle add new
   const handleAddNew = () => {
-    console.log('Add Product button clicked');
-    console.log('Current role:', role);
-    console.log('Current token:', token ? 'Token exists' : 'No token');
-    console.log('Current user:', user);
-    
     setEditingProduct(null);
     resetForm();
     // Auto-generate SKU for new products
@@ -294,7 +252,6 @@ const Products: React.FC = () => {
       sku: generateSKU()
     }));
     setShowModal(true);
-    console.log('Modal should be showing now, showModal:', true);
   };
 
   // Filter products based on search
@@ -389,7 +346,7 @@ const Products: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredProducts.map((product) => (
                 <tr key={product.id} className={`bg-white border-b hover:bg-gray-50 ${
-                  product.stock_quantity <= product.min_stock_level ? 'animate-pulse' : ''
+                  product.stock_quantity <= product.low_stock_alert ? 'animate-pulse' : ''
                 }`}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="w-16 h-16 flex-shrink-0">
@@ -436,18 +393,18 @@ const Products: React.FC = () => {
                     {product.category?.name || 'No Category'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    ₱{product.price.toFixed(2)}
+                    ₱{product.selling_price.toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <span className={`text-sm font-medium ${
-                        product.stock_quantity <= product.min_stock_level 
+                        product.stock_quantity <= product.low_stock_alert 
                           ? 'text-red-600 animate-pulse' 
                           : 'text-gray-900'
                       }`}>
                         {product.stock_quantity}
                       </span>
-                      {product.stock_quantity <= product.min_stock_level && (
+                      {product.stock_quantity <= product.low_stock_alert && (
                         <span className="ml-2 text-xs text-red-500 animate-bounce">⚠️ Low Stock</span>
                       )}
                     </div>
@@ -573,8 +530,8 @@ const Products: React.FC = () => {
                       type="number"
                       step="0.01"
                       required
-                      value={formData.price}
-                      onChange={(e) => setFormData({...formData, price: e.target.value})}
+                      value={formData.selling_price}
+                      onChange={(e) => setFormData({...formData, selling_price: e.target.value})}
                       className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -584,8 +541,8 @@ const Products: React.FC = () => {
                       type="number"
                       step="0.01"
                       required
-                      value={formData.cost}
-                      onChange={(e) => setFormData({...formData, cost: e.target.value})}
+                      value={formData.cost_price}
+                      onChange={(e) => setFormData({...formData, cost_price: e.target.value})}
                       className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -708,8 +665,8 @@ const Products: React.FC = () => {
                     <input
                       type="number"
                       required
-                      value={formData.min_stock_level}
-                      onChange={(e) => setFormData({...formData, min_stock_level: e.target.value})}
+                      value={formData.low_stock_alert}
+                      onChange={(e) => setFormData({...formData, low_stock_alert: e.target.value})}
                       className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>

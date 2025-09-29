@@ -6,13 +6,13 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 
 // Create axios instance
 const api: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL, 
+  baseURL: API_BASE_URL,
   timeout: 3000, // Reduced timeout to 3 seconds for faster fallback
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
-  withCredentials: true,  
+  withCredentials: true,
 });
 
 // Request interceptor to add auth token
@@ -39,7 +39,7 @@ api.interceptors.response.use(
       // Only logout for authentication endpoints, not for general API failures
       const url = error.config?.url || '';
       const isAuthEndpoint = url.includes('/auth/') || url.includes('/login') || url.includes('/logout');
-      
+
       if (isAuthEndpoint) {
         // Unauthorized on auth endpoints - clear token and redirect to login
         localStorage.removeItem('auth_token');
@@ -488,7 +488,7 @@ export const reportsAPI = {
   },
 
   exportReport: async (type: 'sales' | 'products' | 'customers' | 'inventory', format: 'pdf' | 'excel', params?: any) => {
-    const response = await api.get<Blob>(`/reports/${type}/export`, { 
+    const response = await api.get<Blob>(`/reports/${type}/export`, {
       params: { format, ...params },
       responseType: 'blob'
     });
@@ -565,6 +565,31 @@ export const enhancedDashboardAPI = {
 
   getSalesChart: async (period?: 'week' | 'month' | 'year') => {
     const response = await api.get<ApiResponse>('/dashboard/sales-chart', { params: { period } });
+    return response.data;
+  },
+};
+
+// Students API methods
+export const studentsAPI = {
+  import: async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await api.post<ApiResponse>(
+      "/students/import",
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      }
+    );
+    return response.data;
+  },
+
+  search: async (studentId: string) => {
+    const response = await api.get<ApiResponse>(
+      "/students/search",
+      { params: { id: studentId } }
+    );
     return response.data;
   },
 };

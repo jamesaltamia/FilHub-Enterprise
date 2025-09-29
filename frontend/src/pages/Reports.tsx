@@ -244,22 +244,26 @@ const Reports: React.FC = () => {
   };
 
   const exportToCSV = () => {
+    const formatCurrency = (value: number) => {
+      return `₱${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
     const csvData = [
       ['Metric', 'Value'],
-      ['Total Sales', `₱${stats.totalSales.toLocaleString()}`],
+      ['Total Sales', formatCurrency(stats.totalSales)],
       ['Total Orders', stats.totalOrders.toString()],
-      ['Today\'s Sales', `₱${stats.todaysSales.toLocaleString()}`],
-      ['This Week Sales', `₱${stats.thisWeekSales.toLocaleString()}`],
-      ['This Month Sales', `₱${stats.thisMonthSales.toLocaleString()}`],
-      ['Average Order Value', `₱${stats.averageOrderValue.toFixed(2)}`],
+      ['Today\'s Sales', formatCurrency(stats.todaysSales)],
+      ['This Week Sales', formatCurrency(stats.thisWeekSales)],
+      ['This Month Sales', formatCurrency(stats.thisMonthSales)],
+      ['Average Order Value', formatCurrency(stats.averageOrderValue)],
       [''],
       ['Top Selling Products', ''],
       ['Product Name', 'Quantity Sold', 'Revenue'],
-      ...stats.topSellingProducts.map(p => [p.name, p.quantity.toString(), `₱${p.revenue.toLocaleString()}`]),
+      ...stats.topSellingProducts.map(p => [p.name, p.quantity.toString(), formatCurrency(p.revenue)]),
       [''],
       ['Sales by Category', ''],
       ['Category', 'Revenue'],
-      ...stats.salesByCategory.map(c => [c.category, `₱${c.revenue.toLocaleString()}`]),
+      ...stats.salesByCategory.map(c => [c.category, formatCurrency(c.revenue)]),
     ];
     
     const csvContent = csvData.map(row => row.join(',')).join('\n');
@@ -338,7 +342,7 @@ const Reports: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
             title="Total Sales"
-            value={`₱${stats.totalSales.toLocaleString()}`}
+            value={`₱${Number(stats.totalSales).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             icon="💰"
             color="border-green-500"
             subtitle={`${stats.totalOrders} orders`}
@@ -346,21 +350,21 @@ const Reports: React.FC = () => {
           />
           <StatCard
             title="Today's Sales"
-            value={`₱${stats.todaysSales.toLocaleString()}`}
+            value={`₱${Number(stats.todaysSales).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             icon="📈"
             color="border-blue-500"
             gradient={theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-br from-blue-100 to-indigo-100'}
           />
           <StatCard
             title="Average Order"
-            value={`₱${stats.averageOrderValue.toFixed(2)}`}
+            value={`₱${Number(stats.averageOrderValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             icon="🎯"
             color="border-purple-500"
             gradient={theme === 'dark' ? 'bg-purple-900' : 'bg-gradient-to-br from-purple-100 to-violet-100'}
           />
           <StatCard
             title="This Month"
-            value={`₱${stats.thisMonthSales.toLocaleString()}`}
+            value={`₱${Number(stats.thisMonthSales).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             icon="📅"
             color="border-orange-500"
             gradient={theme === 'dark' ? 'bg-orange-900' : 'bg-gradient-to-br from-orange-100 to-red-100'}
@@ -396,7 +400,7 @@ const Reports: React.FC = () => {
                         </div>
                       </div>
                       <p className={`font-semibold ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
-                        ₱{product.revenue.toLocaleString()}
+                        ₱{Number(product.revenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                     </div>
                   ))
@@ -437,7 +441,7 @@ const Reports: React.FC = () => {
                         </div>
                       </div>
                       <p className={`font-semibold ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
-                        ₱{category.revenue.toLocaleString()}
+                        ₱{Number(category.revenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                     </div>
                   ))
@@ -469,7 +473,7 @@ const Reports: React.FC = () => {
                   </p>
                 </div>
                 <p className={`font-semibold ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
-                  ₱{day.sales.toLocaleString()}
+                  ₱{Number(day.sales).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
             ))}

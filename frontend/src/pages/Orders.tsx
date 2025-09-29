@@ -477,13 +477,13 @@ const Orders: React.FC = () => {
         </div>
         
         <div class="totals">
-          <div><strong>Subtotal:</strong> <span>₱${order.total_amount.toFixed(2)}</span></div>
-          ${order.discount_amount ? `<div><strong>Discount:</strong> <span>-₱${order.discount_amount.toFixed(2)}</span></div>` : ''}
-          ${order.tax_amount ? `<div><strong>Tax:</strong> <span>₱${order.tax_amount.toFixed(2)}</span></div>` : ''}
-          <div class="total-line"><strong>TOTAL:</strong> <span>₱${order.total_amount.toFixed(2)}</span></div>
-          <div><strong>Paid:</strong> <span>₱${order.paid_amount.toFixed(2)}</span></div>
-          ${order.paid_amount > order.total_amount ? `<div><strong>Change:</strong> <span>₱${(order.paid_amount - order.total_amount).toFixed(2)}</span></div>` : ''}
-          ${order.paid_amount < order.total_amount ? `<div style="color: red;"><strong>Balance:</strong> <span>₱${(order.total_amount - order.paid_amount).toFixed(2)}</span></div>` : ''}
+          <div><strong>Subtotal:</strong> <span>₱${(Number(order.subtotal) || 0).toFixed(2)}</span></div>
+          ${order.discount_amount ? `<div><strong>Discount:</strong> <span>-₱${(Number(order.discount_amount) || 0).toFixed(2)}</span></div>` : ''}
+          ${order.tax_amount ? `<div><strong>Tax:</strong> <span>₱${(Number(order.tax_amount) || 0).toFixed(2)}</span></div>` : ''}
+          <div class="total-line"><strong>TOTAL:</strong> <span>₱${(Number(order.total_amount) || 0).toFixed(2)}</span></div>
+          <div><strong>Paid:</strong> <span>₱${(Number(order.paid_amount) || 0).toFixed(2)}</span></div>
+          ${Number(order.paid_amount) > Number(order.total_amount) ? `<div><strong>Change:</strong> <span>₱${(Number(order.paid_amount) - Number(order.total_amount)).toFixed(2)}</span></div>` : ''}
+          ${Number(order.paid_amount) < Number(order.total_amount) ? `<div style="color: red;"><strong>Balance:</strong> <span>₱${(Number(order.total_amount) - Number(order.paid_amount)).toFixed(2)}</span></div>` : ''}
         </div>
         
         <div class="footer">
@@ -961,13 +961,13 @@ const Orders: React.FC = () => {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className={`text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>₱{(order.total_amount || 0).toFixed(2)}</div>
-                    {(order.due_amount || 0) > 0 && (
-                      <div className="text-sm text-red-600">Due: ₱{(order.due_amount || 0).toFixed(2)}</div>
+                    <div className={`text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>₱{(Number(order.total_amount) || 0).toFixed(2)}</div>
+                    {(Number(order.due_amount) || 0) > 0 && (
+                      <div className="text-sm text-red-600">Due: ₱{(Number(order.due_amount) || 0).toFixed(2)}</div>
                     )}
-                    {order.paid_amount && (order.paid_amount || 0) > (order.total_amount || 0) && (
+                    {order.paid_amount && (Number(order.paid_amount) || 0) > (Number(order.total_amount) || 0) && (
                       <div className="text-sm text-green-600 dark:text-green-400">
-                        Change: ₱{((order.paid_amount || 0) - (order.total_amount || 0)).toFixed(2)}
+                        Change: ₱{((Number(order.paid_amount) || 0) - (Number(order.total_amount) || 0)).toFixed(2)}
                       </div>
                     )}
                   </td>
@@ -1371,9 +1371,9 @@ const Orders: React.FC = () => {
                         <>
                           <div className="flex justify-between">
                             <span>Subtotal:</span>
-                            <span>₱{subtotal.toFixed(2)}</span>
+                            <span>₱{(subtotal || 0).toFixed(2)}</span>
                             <span className={dueAmount > 0 ? 'text-red-600' : 'text-green-600'}>
-                              ₱{dueAmount.toFixed(2)}
+                              ₱{(dueAmount || 0).toFixed(2)}
                             </span>
                           </div>
                         </>
@@ -1454,7 +1454,7 @@ const Orders: React.FC = () => {
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-medium">₱{order.total_amount.toFixed(2)}</div>
+                          <div className="font-medium">₱{(Number(order.total_amount) || 0).toFixed(2)}</div>
                           <div className="text-sm text-gray-500">
                             {new Date(order.created_at).toLocaleDateString()}
                           </div>

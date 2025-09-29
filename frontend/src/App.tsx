@@ -14,6 +14,8 @@ import Users from './pages/Users';
 import Layout from './components/Layout';
 import LoadingSpinner from './components/LoadingSpinner';
 import './styles/theme.css';
+import Students from './pages/Students';
+import { StudentsProvider } from './contexts/StudentsContext'; // <-- import new context
 
 // Protected route component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -30,7 +32,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
-// Public route component (redirect if already authenticated)
+// Public route component
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -59,20 +61,22 @@ const AppRoutes: React.FC = () => {
       {/* Protected routes */}
       <Route path="/" element={
         <ProtectedRoute>
-          <Layout />
+          <StudentsProvider> {/* <-- wrap protected routes with StudentsProvider */}
+            <Layout />
+          </StudentsProvider>
         </ProtectedRoute>
       }>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="inventory" element={<div className="text-center py-12"><h1 className="text-2xl font-bold">Inventory Management</h1><p className="text-gray-600 mt-2">Coming soon...</p></div>} />
         <Route path="pos" element={<Sales />} />
-        <Route path="sales" element={<Sales />} />
         <Route path="categories" element={<Categories />} />
         <Route path="customers" element={<Customers />} />
         <Route path="orders" element={<Orders />} />
         <Route path="reports" element={<Reports />} />
         <Route path="users" element={<Users />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="students" element={<Students />} />
       </Route>
 
       {/* Catch all route */}

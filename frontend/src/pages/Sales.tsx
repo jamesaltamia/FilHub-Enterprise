@@ -41,6 +41,7 @@ interface Customer {
   total_orders?: number;
   total_spent?: number;
   is_active?: boolean;
+  last_order_date?: string | Date;
   // Educational Information
   education_level?: string;
   year?: string;
@@ -490,8 +491,6 @@ const Sales: React.FC = () => {
             // Update existing customer
             await customersAPI.update(customer.id, {
               name: customer.name,
-              email: customer.email,
-              phone: customer.phone,
               education_level: customer.education_level,
               year: customer.year,
               grade_level: customer.grade_level,
@@ -505,8 +504,6 @@ const Sales: React.FC = () => {
             // Create new customer
             const customerResponse = await customersAPI.create({
               name: customer.name,
-              email: customer.email,
-              phone: customer.phone,
               education_level: customer.education_level,
               year: customer.year,
               grade_level: customer.grade_level,
@@ -859,7 +856,7 @@ const Sales: React.FC = () => {
                             </button>
                           </div>
                           <span className="font-bold text-lg bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-                            ₱{item.total.toFixed(2)}
+                            ₱{(item.total || 0).toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -871,14 +868,14 @@ const Sales: React.FC = () => {
             <div className={`border-t pt-4 space-y-3 ${theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}>
               <div className={`flex justify-between text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
                 <span>Subtotal:</span>
-                <span>₱{subtotal.toFixed(2)}</span>
+                <span>₱{(subtotal || 0).toFixed(2)}</span>
               </div>
               <div className={`flex justify-between font-bold text-xl border-t pt-3 ${
                 theme === 'dark' ? 'border-gray-600 text-white' : 'border-gray-200 text-gray-900'
               }`}>
                 <span>Total:</span>
                 <span className="bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-                  ₱{total.toFixed(2)}
+                  ₱{(total || 0).toFixed(2)}
                 </span>
               </div>
             </div>
@@ -902,7 +899,7 @@ const Sales: React.FC = () => {
                     className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-xl hover:from-blue-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 font-semibold"
                   >
                     <span className="mr-2">💳</span>
-                    Process Sale (₱{total.toFixed(2)})
+                    Process Sale (₱{(total || 0).toFixed(2)})
                   </button>
                 </div>
               </div>
@@ -980,7 +977,7 @@ const Sales: React.FC = () => {
               <div className="flex justify-between">
                 <span>Change:</span>
                 <span className={`font-bold ${changeAmount < 0 ? 'text-red-500' : 'text-green-500'}`}>
-                  ₱{changeAmount.toFixed(2)}
+                  ₱{(changeAmount || 0).toFixed(2)}
                 </span>
               </div>
             </div>

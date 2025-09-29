@@ -299,10 +299,10 @@ const Customers: React.FC = () => {
 
   // Filter customers based on search
   const filteredCustomers = customers.filter(customer =>
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (customer.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (customer.phone || '').includes(searchTerm)
-  );
+    (customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+    (customer.email?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+    (customer.phone?.includes(searchTerm) || false)
+);
 
   if (loading) {
     return (

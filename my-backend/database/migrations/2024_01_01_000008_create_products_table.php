@@ -9,7 +9,7 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void
+        public function up(): void
     {
         Schema::create('products', function (Blueprint $table) {
             $table->id();
@@ -18,8 +18,6 @@ return new class extends Migration
             $table->string('barcode')->unique()->nullable();
             $table->text('description')->nullable();
             $table->foreignId('category_id')->constrained()->onDelete('cascade');
-            $table->foreignId('brand_id')->nullable()->constrained()->onDelete('set null');
-            $table->foreignId('unit_id')->constrained()->onDelete('cascade');
             $table->decimal('cost_price', 15, 2)->default(0);
             $table->decimal('selling_price', 15, 2)->default(0);
             $table->decimal('discount_percentage', 5, 2)->default(0);
@@ -30,13 +28,22 @@ return new class extends Migration
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
+
+        // Add brand_id after the brands table is created
+        Schema::table('products', function (Blueprint $table) {
+            $table->foreignId('brand_id')
+                ->after('category_id')
+                ->nullable()
+                ->constrained('brands')
+                ->onDelete('set null');
+        });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
+        Schema::table('products', function (Blueprint $table) {
+            $table->dropForeign(['brand_id']);
+        });
         Schema::dropIfExists('products');
     }
 };

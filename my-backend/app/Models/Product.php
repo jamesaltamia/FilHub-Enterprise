@@ -16,7 +16,6 @@ class Product extends Model
         'description',
         'category_id',
         'brand_id',
-        'unit_id',
         'cost_price',
         'selling_price',
         'discount_percentage',
@@ -44,21 +43,12 @@ class Product extends Model
     {
         return $this->belongsTo(Category::class);
     }
-
     /**
      * Get the brand that owns the product.
      */
     public function brand()
     {
         return $this->belongsTo(Brand::class);
-    }
-
-    /**
-     * Get the unit that owns the product.
-     */
-    public function unit()
-    {
-        return $this->belongsTo(Unit::class);
     }
 
     /**

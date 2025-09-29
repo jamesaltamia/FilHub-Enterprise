@@ -11,16 +11,18 @@ use Illuminate\Support\Facades\Storage;
 class ProductController extends BaseApiController
 {
     public function index(Request $request)
-    {
-        $query = Product::with(['category']);
-        if ($request->has('search')) {
-            $query->search($request->search);
-        }
-        $query->orderBy('created_at','desc');
-        $products = $request->has('per_page') ? $query->paginate((int) $request->per_page) : $query->get();
-        
-        // Transform the data to match frontend expectations
-        $transformedProducts = $products->map(function ($product) {
+{
+    $query = Product::with(['category']);
+
+    if ($request->has('search')) {
+        $query->where('name', 'like', '%' . $request->search . '%');
+    }
+
+    $query->orderBy('created_at', 'desc');
+
+    if ($request->has('per_page')) {
+        $products = $query->paginate((int) $request->per_page);
+        $products->getCollection()->transform(function ($product) {
             return [
                 'id' => $product->id,
                 'name' => $product->name,
@@ -38,10 +40,29 @@ class ProductController extends BaseApiController
                 'updated_at' => $product->updated_at,
             ];
         });
-        
-        return $this->successResponse($transformedProducts, 'Products retrieved successfully');
+    } else {
+        $products = $query->get()->map(function ($product) {
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'description' => $product->description,
+                'sku' => $product->sku,
+                'price' => $product->selling_price,
+                'cost' => $product->cost_price,
+                'stock_quantity' => $product->stock_quantity,
+                'min_stock_level' => $product->low_stock_alert,
+                'category_id' => $product->category_id,
+                'category' => $product->category,
+                'image' => $product->image,
+                'is_active' => $product->is_active,
+                'created_at' => $product->created_at,
+                'updated_at' => $product->updated_at,
+            ];
+        });
     }
 
+    return $this->successResponse($products, 'Products retrieved successfully');
+}
     public function search(Request $request)
     {
         $term = (string) $request->query('query', '');
@@ -50,14 +71,14 @@ class ProductController extends BaseApiController
         }
 
         $products = Product::query()
-            ->where(function($q) use ($term) {
+            ->where(function ($q) use ($term) {
                 $q->where('name', 'like', "%{$term}%")
-                  ->orWhere('barcode', 'like', "%{$term}%")
-                  ->orWhere('sku', 'like', "%{$term}%");
+                    ->orWhere('barcode', 'like', "%{$term}%")
+                    ->orWhere('sku', 'like', "%{$term}%");
             })
             ->orderBy('name')
             ->limit(20)
-            ->get(['id','name','selling_price','sku','barcode']);
+            ->get(['id', 'name', 'selling_price', 'sku', 'barcode']);
 
         return $this->successResponse($products, 'Search results');
     }
@@ -88,7 +109,7 @@ class ProductController extends BaseApiController
         // Debug: Log the raw request
         \Log::info('Raw request content: ' . $request->getContent());
         \Log::info('Request all: ' . json_encode($request->all()));
-        
+
         // Try to get data from raw JSON if request->all() is empty
         $data = $request->all();
         if (empty($data)) {
@@ -98,7 +119,7 @@ class ProductController extends BaseApiController
                 \Log::info('Using raw JSON data: ' . json_encode($data));
             }
         }
-        
+
         $validator = Validator::make($data, [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -132,7 +153,7 @@ class ProductController extends BaseApiController
 
         $product = Product::create($productData);
         $product->load('category');
-        
+
         return $this->successResponse([
             'id' => $product->id,
             'name' => $product->name,
@@ -161,7 +182,7 @@ class ProductController extends BaseApiController
                 $data = $rawData;
             }
         }
-        
+
         $validator = Validator::make($data, [
             'name' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
@@ -193,7 +214,7 @@ class ProductController extends BaseApiController
 
         $product->update($updateData);
         $product->load('category');
-        
+
         return $this->successResponse([
             'id' => $product->id,
             'name' => $product->name,
@@ -217,16 +238,16 @@ class ProductController extends BaseApiController
         try {
             // Check if product exists in any orders or other related tables
             $hasOrders = $product->orderProducts()->exists();
-            
+
             if ($hasOrders) {
                 // If product has orders, just mark as inactive instead of deleting
                 $product->update(['is_active' => false]);
                 return $this->successResponse(null, 'Product deactivated successfully (has order history)');
             }
-            
+
             // Delete the product if no orders exist
             $product->delete();
-            
+
             return $this->successResponse(null, 'Product deleted successfully');
         } catch (\Exception $e) {
             \Log::error('Error deleting product: ' . $e->getMessage());

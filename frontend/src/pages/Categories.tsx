@@ -17,10 +17,10 @@ interface Product {
   name: string;
   description?: string;
   sku: string;
-  price: number;
-  cost: number;
+  selling_price: number;
+  cost_price: number;
   stock_quantity: number;
-  min_stock_level: number;
+  low_stock_alert: number;
   category_id?: number;
   category?: {
     id: number;
@@ -60,9 +60,9 @@ const Categories: React.FC = () => {
     description: '',
     sku: '',
     category_id: '',
-    price: '',
-    cost: '',
-    min_stock_level: '',
+    selling_price: '',
+    cost_price: '',
+    low_stock_alert: '',
     stock_quantity: '',
     image: '',
     is_active: true
@@ -181,9 +181,22 @@ const Categories: React.FC = () => {
         let updateSuccess = false;
         
         try {
-          await categoriesAPI.update(editingCategory.id, formData);
+          const response = await categoriesAPI.update(editingCategory.id, formData);
           updateSuccess = true;
           console.log('Category updated via API');
+          
+          // Update localStorage with the updated category from API response
+          const storedCategories = localStorage.getItem('categories');
+          if (storedCategories) {
+            const categories = JSON.parse(storedCategories);
+            const updatedCategories = categories.map((cat: Category) => 
+              cat.id === editingCategory.id 
+                ? response.data
+                : cat
+            );
+            localStorage.setItem('categories', JSON.stringify(updatedCategories));
+            console.log('Category updated in localStorage');
+          }
         } catch {
           console.log('API update failed (expected in demo mode), using localStorage fallback');
           
@@ -211,9 +224,15 @@ const Categories: React.FC = () => {
         let createSuccess = false;
         
         try {
-          await categoriesAPI.create(formData);
+          const response = await categoriesAPI.create(formData);
           createSuccess = true;
           console.log('Category created via API');
+          
+          // Update localStorage with the new category from API response
+          const storedCategories = localStorage.getItem('categories');
+          const categories = storedCategories ? JSON.parse(storedCategories) : [];
+          categories.push(response.data);
+          localStorage.setItem('categories', JSON.stringify(categories));
         } catch {
           console.log('API create failed (expected in demo mode), using localStorage fallback');
           
@@ -380,9 +399,9 @@ const Categories: React.FC = () => {
         description: productFormData.description,
         sku: productFormData.sku,
         category_id: parseInt(productFormData.category_id),
-        price: parseFloat(productFormData.price),
-        cost: parseFloat(productFormData.cost),
-        min_stock_level: parseInt(productFormData.min_stock_level),
+        selling_price: parseFloat(productFormData.selling_price),
+        cost_price: parseFloat(productFormData.cost_price),
+        low_stock_alert: parseInt(productFormData.low_stock_alert),
         stock_quantity: parseInt(productFormData.stock_quantity),
         image: productFormData.image || null,
         is_active: productFormData.is_active,
@@ -522,7 +541,7 @@ const Categories: React.FC = () => {
         {filteredCategories.map((category) => {
           const categoryProducts = products.filter(product => product.category_id === category.id);
           const lowStockCount = categoryProducts.filter(product => 
-            product.stock_quantity <= (product.min_stock_level || 5)
+            product.stock_quantity <= (product.low_stock_alert || 5)
           ).length;
           
           return (
@@ -586,9 +605,9 @@ const Categories: React.FC = () => {
                             description: '',
                             sku: `SKU-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
                             category_id: category.id.toString(),
-                            price: '',
-                            cost: '',
-                            min_stock_level: '',
+                            selling_price: '',
+                            cost_price: '',
+                            low_stock_alert: '',
                             stock_quantity: '',
                             image: '',
                             is_active: true
@@ -785,7 +804,7 @@ const Categories: React.FC = () => {
                               theme === 'dark' 
                                 ? 'bg-gray-800 hover:bg-gray-700 border-gray-700' 
                                 : 'bg-white hover:bg-gray-50 border-gray-200'
-                            } ${product.stock_quantity <= (product.min_stock_level || 5) ? 'animate-pulse' : ''}`}>
+                            } ${product.stock_quantity <= (product.low_stock_alert || 5) ? 'animate-pulse' : ''}`}>
                               <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                                 <div className="flex items-center">
                                   <div>
@@ -806,13 +825,13 @@ const Categories: React.FC = () => {
                               <td className={`px-3 sm:px-6 py-4 whitespace-nowrap text-sm ${
                                 theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
                               }`}>
-                                ${parseFloat(product.price).toFixed(2)}
+                                ₱{product.selling_price.toFixed(2)}
                               </td>
                               <td className={`px-3 sm:px-6 py-4 whitespace-nowrap text-sm ${
                                 theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
                               }`}>
                                 <span className={`px-2 py-1 text-xs rounded-full ${
-                                  product.stock_quantity <= (product.min_stock_level || 5)
+                                  product.stock_quantity <= (product.low_stock_alert || 5)
                                     ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                                     : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                                 }`}>
@@ -838,10 +857,10 @@ const Categories: React.FC = () => {
                                       name: product.name,
                                       description: product.description || '',
                                       sku: product.sku,
-                                      category_id: product.category_id.toString(),
-                                      price: product.price.toString(),
-                                      cost: product.cost?.toString() || '',
-                                      min_stock_level: product.min_stock_level?.toString() || '',
+                                      category_id: product.category_id?.toString() || '',
+                                      selling_price: product.selling_price?.toString() || '',
+                                      cost_price: product.cost_price?.toString() || '',
+                                      low_stock_alert: product.low_stock_alert?.toString() || '',
                                       stock_quantity: product.stock_quantity.toString(),
                                       image: product.image || '',
                                       is_active: product.is_active
@@ -982,8 +1001,8 @@ const Categories: React.FC = () => {
                     <input
                       type="number"
                       step="0.01"
-                      value={productFormData.price}
-                      onChange={(e) => setProductFormData({ ...productFormData, price: e.target.value })}
+                      value={productFormData.selling_price}
+                      onChange={(e) => setProductFormData({ ...productFormData, selling_price: e.target.value })}
                       className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                         theme === 'dark' 
                           ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
@@ -1002,8 +1021,8 @@ const Categories: React.FC = () => {
                     <input
                       type="number"
                       step="0.01"
-                      value={productFormData.cost}
-                      onChange={(e) => setProductFormData({ ...productFormData, cost: e.target.value })}
+                      value={productFormData.cost_price}
+                      onChange={(e) => setProductFormData({ ...productFormData, cost_price: e.target.value })}
                       className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                         theme === 'dark' 
                           ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
@@ -1042,8 +1061,8 @@ const Categories: React.FC = () => {
                     </label>
                     <input
                       type="number"
-                      value={productFormData.min_stock_level}
-                      onChange={(e) => setProductFormData({ ...productFormData, min_stock_level: e.target.value })}
+                      value={productFormData.low_stock_alert}
+                      onChange={(e) => setProductFormData({ ...productFormData, low_stock_alert: e.target.value })}
                       className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                         theme === 'dark' 
                           ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-300' 
