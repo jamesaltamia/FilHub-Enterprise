@@ -1,4 +1,9 @@
-import React, { createContext, useState, useEffect, type ReactNode } from "react";
+import React, {
+  createContext,
+  useState,
+  useEffect,
+  type ReactNode,
+} from "react";
 
 export interface Student {
   student_id: string;
@@ -18,9 +23,13 @@ interface StudentsContextType {
   setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
 }
 
-export const StudentsContext = createContext<StudentsContextType | undefined>(undefined);
+export const StudentsContext = createContext<StudentsContextType | undefined>(
+  undefined
+);
 
-export const StudentsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const StudentsProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   const [students, setStudents] = useState<Student[]>([]);
 
   // Load students from localStorage on mount
@@ -58,7 +67,13 @@ export const StudentsProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   return (
     <StudentsContext.Provider
-      value={{ students, addStudent, updateStudent, deleteStudent, setStudents }}
+      value={{
+        students,
+        addStudent,
+        updateStudent,
+        deleteStudent,
+        setStudents,
+      }}
     >
       {children}
     </StudentsContext.Provider>
