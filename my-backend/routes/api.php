@@ -13,6 +13,11 @@ use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\ImageUploadController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\CanteenStallController;
+use App\Http\Controllers\CanteenTenantController;
+use App\Http\Controllers\CanteenRentalContractController;
+use App\Http\Controllers\CanteenRentalPaymentController;
+use App\Http\Controllers\CanteenDashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,6 +38,36 @@ Route::post('/auth/verify-otp', [AuthController::class, 'verifyOtp']);
 
 // Public CSV lookup
 Route::get('/customer/{id}', [CustomerController::class, 'findCustomer']);
+
+// Public endpoints for demo mode (no authentication required)
+Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
+Route::get('/dashboard', [DashboardController::class, 'index']);
+Route::get('/categories', [CategoryController::class, 'index']);
+Route::post('/categories', [CategoryController::class, 'store']);
+Route::put('/categories/{category}', [CategoryController::class, 'update']);
+Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
+Route::get('/products', [ProductController::class, 'index']);
+Route::post('/products', [ProductController::class, 'store']);
+Route::put('/products/{product}', [ProductController::class, 'update']);
+Route::delete('/products/{product}', [ProductController::class, 'destroy']);
+Route::get('/orders', [OrderController::class, 'index']);
+Route::post('/orders', [OrderController::class, 'store']);
+Route::put('/orders/{order}/status', [OrderController::class, 'updateStatus']);
+Route::put('/orders/{order}/payment', [OrderController::class, 'updatePayment']);
+Route::get('/customers', [CustomerController::class, 'index']);
+Route::post('/customers', [CustomerController::class, 'store']);
+Route::put('/customers/{customer}', [CustomerController::class, 'update']);
+Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
+
+// Additional public endpoints
+Route::get('/users', function() { return response()->json(['data' => []]); });
+Route::post('/users', function() { return response()->json(['message' => 'User created']); });
+Route::delete('/users/{id}', function() { return response()->json(['message' => 'User deleted']); });
+Route::get('/settings', function() { return response()->json(['data' => []]); });
+Route::put('/settings', function() { return response()->json(['message' => 'Settings updated']); });
+Route::get('/reports/sales-report', function() { return response()->json(['data' => []]); });
+Route::get('/reports/products-report', function() { return response()->json(['data' => []]); });
+Route::get('/reports/customers-report', function() { return response()->json(['data' => []]); });
 
 // Serve uploaded images
 Route::get('/storage/images/{filename}', function ($filename) {
@@ -147,3 +182,28 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/reports/inventory-report', [DashboardController::class, 'inventoryReport']);
     });
 });
+
+// --------------------
+// Canteen Management API Routes (Public for demo mode)
+// --------------------
+
+// Canteen Stalls
+Route::apiResource('canteen/stalls', CanteenStallController::class);
+
+// Canteen Tenants
+Route::apiResource('canteen/tenants', CanteenTenantController::class);
+
+// Canteen Rental Contracts
+Route::apiResource('canteen/contracts', CanteenRentalContractController::class);
+
+// Canteen Rental Payments
+Route::apiResource('canteen/payments', CanteenRentalPaymentController::class);
+Route::patch('/canteen/payments/{payment}/mark-paid', [CanteenRentalPaymentController::class, 'markAsPaid']);
+Route::post('/canteen/payments/generate-monthly', [CanteenRentalPaymentController::class, 'generateMonthlyPayments']);
+
+// Canteen Dashboard
+Route::get('/canteen/dashboard/stats', [CanteenDashboardController::class, 'getStats']);
+Route::get('/canteen/dashboard/recent-payments', [CanteenDashboardController::class, 'getRecentPayments']);
+Route::get('/canteen/dashboard/overdue-payments', [CanteenDashboardController::class, 'getOverduePayments']);
+Route::get('/canteen/dashboard/monthly-revenue', [CanteenDashboardController::class, 'getMonthlyRevenue']);
+Route::get('/canteen/dashboard/tenant-performance', [CanteenDashboardController::class, 'getTenantPerformance']);

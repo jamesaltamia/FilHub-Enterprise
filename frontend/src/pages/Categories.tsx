@@ -30,6 +30,9 @@ interface Product {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // Uniform-specific fields
+  uniform_size?: string;
+  uniform_gender?: string;
 }
 
 const Categories: React.FC = () => {
@@ -65,7 +68,10 @@ const Categories: React.FC = () => {
     low_stock_alert: '',
     stock_quantity: '',
     image: '',
-    is_active: true
+    is_active: true,
+    // Uniform-specific fields
+    uniform_size: '',
+    uniform_gender: ''
   });
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -81,6 +87,25 @@ const Categories: React.FC = () => {
       if (storedCategories) {
         try {
           const parsedCategories = JSON.parse(storedCategories);
+          
+          // Ensure "Uniform" category exists for demo
+          const hasUniformCategory = parsedCategories.some((cat: Category) => 
+            cat.name.toLowerCase() === 'uniform'
+          );
+          
+          if (!hasUniformCategory) {
+            const uniformCategory: Category = {
+              id: Date.now(),
+              name: 'Uniform',
+              description: 'School and work uniforms with size and gender specifications',
+              is_active: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+            parsedCategories.push(uniformCategory);
+            localStorage.setItem('categories', JSON.stringify(parsedCategories));
+          }
+          
           setCategories(parsedCategories);
           return;
         } catch {
@@ -394,6 +419,10 @@ const Categories: React.FC = () => {
     e.preventDefault();
     
     try {
+      // Check if this is a uniform category
+      const selectedCategoryName = categories.find(cat => cat.id === parseInt(productFormData.category_id))?.name?.toLowerCase();
+      const isUniformCategory = selectedCategoryName === 'uniform';
+      
       const productData = {
         name: productFormData.name,
         description: productFormData.description,
@@ -406,7 +435,12 @@ const Categories: React.FC = () => {
         image: productFormData.image || null,
         is_active: productFormData.is_active,
         created_at: editingProduct ? editingProduct.created_at : new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        // Add uniform-specific fields only for uniform category
+        ...(isUniformCategory && {
+          uniform_size: productFormData.uniform_size,
+          uniform_gender: productFormData.uniform_gender
+        })
       };
 
       // Get existing products from localStorage
@@ -610,7 +644,9 @@ const Categories: React.FC = () => {
                             low_stock_alert: '',
                             stock_quantity: '',
                             image: '',
-                            is_active: true
+                            is_active: true,
+                            uniform_size: '',
+                            uniform_gender: ''
                           });
                           setSelectedImageFile(null);
                           setImagePreview('');
@@ -779,6 +815,11 @@ const Categories: React.FC = () => {
                             <th className={`px-3 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
                               theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
                             }`}>Product</th>
+                            {selectedCategory.name.toLowerCase() === 'uniform' && (
+                              <th className={`px-3 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider hidden md:table-cell ${
+                                theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
+                              }`}>Uniform Details</th>
+                            )}
                             <th className={`px-3 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider hidden sm:table-cell ${
                               theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
                             }`}>SKU</th>
@@ -817,6 +858,38 @@ const Categories: React.FC = () => {
                                   </div>
                                 </div>
                               </td>
+                              {selectedCategory.name.toLowerCase() === 'uniform' && (
+                                <td className={`px-3 sm:px-6 py-4 whitespace-nowrap text-sm hidden md:table-cell ${
+                                  theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
+                                }`}>
+                                  {product.uniform_size || product.uniform_gender ? (
+                                    <div className="space-y-1">
+                                      {product.uniform_size && (
+                                        <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                          theme === 'dark' ? 'bg-purple-900 text-purple-200' : 'bg-purple-100 text-purple-800'
+                                        }`}>
+                                          <span className="mr-1">📏</span>
+                                          {product.uniform_size}
+                                        </div>
+                                      )}
+                                      {product.uniform_gender && (
+                                        <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ml-1 ${
+                                          theme === 'dark' ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-800'
+                                        }`}>
+                                          <span className="mr-1">
+                                            {product.uniform_gender === 'Men' ? '👨' : '👩'}
+                                          </span>
+                                          {product.uniform_gender}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
+                                      No uniform details
+                                    </span>
+                                  )}
+                                </td>
+                              )}
                               <td className={`px-3 sm:px-6 py-4 whitespace-nowrap text-sm hidden sm:table-cell ${
                                 theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
                               }`}>
@@ -863,7 +936,9 @@ const Categories: React.FC = () => {
                                       low_stock_alert: product.low_stock_alert?.toString() || '',
                                       stock_quantity: product.stock_quantity.toString(),
                                       image: product.image || '',
-                                      is_active: product.is_active
+                                      is_active: product.is_active,
+                                      uniform_size: product.uniform_size || '',
+                                      uniform_gender: product.uniform_gender || ''
                                     });
                                     setSelectedImageFile(null);
                                     setImagePreview('');
@@ -1124,6 +1199,84 @@ const Categories: React.FC = () => {
                     </div>
                   )}
                 </div>
+                
+                {/* Uniform-specific fields - only show for uniform category */}
+                {(() => {
+                  const selectedCategoryName = categories.find(cat => cat.id === parseInt(productFormData.category_id))?.name?.toLowerCase();
+                  const isUniformCategory = selectedCategoryName === 'uniform';
+                  
+                  if (!isUniformCategory) return null;
+                  
+                  return (
+                    <div className={`p-4 rounded-lg border-2 border-dashed ${
+                      theme === 'dark' ? 'border-purple-600 bg-purple-900/20' : 'border-purple-300 bg-purple-50'
+                    }`}>
+                      <h4 className={`text-sm font-semibold mb-3 flex items-center ${
+                        theme === 'dark' ? 'text-purple-200' : 'text-purple-800'
+                      }`}>
+                        <span className="mr-2">👕</span>
+                        Uniform Details
+                      </h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className={`block text-sm font-medium mb-1 ${
+                            theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                          }`}>
+                            Size *
+                          </label>
+                          <select
+                            value={productFormData.uniform_size}
+                            onChange={(e) => setProductFormData({ ...productFormData, uniform_size: e.target.value })}
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                              theme === 'dark' 
+                                ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                                : 'bg-white border-gray-300 text-gray-900'
+                            }`}
+                            required
+                          >
+                            <option value="">Select Size</option>
+                            <option value="XS">XS (Extra Small)</option>
+                            <option value="S">S (Small)</option>
+                            <option value="M">M (Medium)</option>
+                            <option value="L">L (Large)</option>
+                            <option value="XL">XL (Extra Large)</option>
+                            <option value="XXL">XXL (Double Extra Large)</option>
+                            <option value="XXXL">XXXL (Triple Extra Large)</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className={`block text-sm font-medium mb-1 ${
+                            theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                          }`}>
+                            Gender *
+                          </label>
+                          <select
+                            value={productFormData.uniform_gender}
+                            onChange={(e) => setProductFormData({ ...productFormData, uniform_gender: e.target.value })}
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                              theme === 'dark' 
+                                ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                                : 'bg-white border-gray-300 text-gray-900'
+                            }`}
+                            required
+                          >
+                            <option value="">Select Gender</option>
+                            <option value="Men">Men</option>
+                            <option value="Women">Women</option>
+                          </select>
+                        </div>
+                      </div>
+                      
+                      <p className={`text-xs mt-2 ${
+                        theme === 'dark' ? 'text-purple-300' : 'text-purple-600'
+                      }`}>
+                        These fields are required for uniform products to help customers find the right fit.
+                      </p>
+                    </div>
+                  );
+                })()}
                 
                 <div className="flex items-center">
                   <input

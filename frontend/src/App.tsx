@@ -15,6 +15,7 @@ import Layout from './components/Layout';
 import LoadingSpinner from './components/LoadingSpinner';
 import './styles/theme.css';
 import Students from './pages/Students';
+import CanteenManagement from './pages/CanteenManagement';
 import { StudentsProvider } from './contexts/StudentsContext'; // <-- import new context
 
 // Protected route component
@@ -74,6 +75,7 @@ const AppRoutes: React.FC = () => {
         <Route path="customers" element={<Customers />} />
         <Route path="orders" element={<Orders />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="canteen" element={<CanteenManagement />} />
         <Route path="users" element={<Users />} />
         <Route path="settings" element={<Settings />} />
         <Route path="students" element={<Students />} />

@@ -136,73 +136,98 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Fallback: Check localStorage users (demo mode)
       console.log("Using localStorage authentication...");
+      
+      // Always ensure default users exist
+      const defaultUsers = [
+        { id: 1, name: 'Admin User', email: 'admin@filhub.com', role: 'admin', status: 'active', password: 'admin123' },
+        { id: 2, name: 'Cashier User', email: 'cashier@filhub.com', role: 'cashier', status: 'active', password: 'cashier123' }
+      ];
+      
+      let users = defaultUsers;
       const localUsers = localStorage.getItem('filhub_users');
-      console.log("localStorage users data:", localUsers);
-      console.log("All localStorage keys:", Object.keys(localStorage));
       
       if (localUsers) {
-        const users = JSON.parse(localUsers);
-        console.log("Parsed users:", users);
-        console.log("Looking for email:", email, "password:", password);
-        
-        // Debug: Log all users first
-        users.forEach((u: User & { password?: string; role?: string; status?: string }, index: number) => {
-          console.log(`User ${index}:`, {
-            id: u.id,
-            name: u.name,
-            email: u.email,
-            password: u.password,
-            role: u.role,
-            status: u.status
-          });
-        });
-        
-        console.log("Input credentials:", { email, password });
-        
-        const foundUser = users.find((user: User & { password?: string; role?: string }) => {
-          const emailMatch = user.email?.toLowerCase().trim() === email.toLowerCase().trim();
-          const passwordMatch = user.password?.trim() === password.trim();
-          return emailMatch && passwordMatch;
-        });
-        
-        console.log("Found user:", foundUser);
-        
-        if (foundUser) {
-          // Check if user has 2FA enabled
-          const has2FA = TwoFactorAuthService.is2FAEnabled(foundUser.email);
-          console.log(`2FA check for ${foundUser.email}: ${has2FA}`);
-          
-          if (has2FA) {
-            console.log("Showing 2FA verification modal");
-            // Show 2FA verification modal
-            setPendingUser(foundUser);
-            setShowTwoFactorVerification(true);
-            return;
+        try {
+          const parsedUsers = JSON.parse(localUsers);
+          if (Array.isArray(parsedUsers) && parsedUsers.length > 0) {
+            users = parsedUsers;
+            console.log("Using existing localStorage users:", users);
+          } else {
+            console.log("localStorage users invalid, using defaults");
+            localStorage.setItem('filhub_users', JSON.stringify(defaultUsers));
           }
-
-          console.log("Completing login without 2FA");
-          // Complete login without 2FA
-          completeLogin(foundUser);
-          return;
-        } else {
-          console.log("No matching user found in localStorage");
+        } catch (error) {
+          console.log("Error parsing localStorage users, using defaults");
+          localStorage.setItem('filhub_users', JSON.stringify(defaultUsers));
         }
       } else {
-        console.log("No localStorage users found");
-        // Force initialize localStorage with default users if empty
-        const defaultUsers = [
-          { id: 1, name: 'Admin User', email: 'admin@filhub.com', role: 'admin', status: 'active', password: 'admin123' },
-          { id: 2, name: 'Cashier User', email: 'cashier@filhub.com', role: 'cashier', status: 'active', password: 'cashier123' }
-        ];
+        console.log("No localStorage users found, initializing with defaults");
         localStorage.setItem('filhub_users', JSON.stringify(defaultUsers));
-        console.log("Initialized localStorage with default users");
+      }
+      
+      console.log("Available users for login:", users);
+      console.log("Looking for email:", email, "password:", password);
+      
+      // Test with exact default credentials
+      if (email === 'admin@filhub.com' && password === 'admin123') {
+        console.log("EXACT MATCH TEST: Using admin credentials");
+        const adminUser = { id: 1, name: 'Admin User', email: 'admin@filhub.com', role: 'admin', status: 'active', password: 'admin123' };
+        console.log("Forcing login with admin user:", adminUser);
+        completeLogin(adminUser);
+        return;
+      }
+      
+      if (email === 'cashier@filhub.com' && password === 'cashier123') {
+        console.log("EXACT MATCH TEST: Using cashier credentials");
+        const cashierUser = { id: 2, name: 'Cashier User', email: 'cashier@filhub.com', role: 'cashier', status: 'active', password: 'cashier123' };
+        console.log("Forcing login with cashier user:", cashierUser);
+        completeLogin(cashierUser);
+        return;
+      }
+      
+      // Debug: Log all users
+      users.forEach((u: User & { password?: string; role?: string; status?: string }, index: number) => {
+        console.log(`User ${index}:`, {
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          password: u.password,
+          role: u.role,
+          status: u.status
+        });
+      });
+      
+      const foundUser = users.find((user: User & { password?: string; role?: string }) => {
+        const emailMatch = user.email?.toLowerCase().trim() === email.toLowerCase().trim();
+        const passwordMatch = user.password?.trim() === password.trim();
+        console.log(`Checking user ${user.email}:`);
+        console.log(`  - Email: "${user.email}" vs "${email}" = ${emailMatch}`);
+        console.log(`  - Password: "${user.password}" vs "${password}" = ${passwordMatch}`);
+        console.log(`  - Overall match: ${emailMatch && passwordMatch}`);
+        return emailMatch && passwordMatch;
+      });
+      
+      console.log("Found user:", foundUser);
+      
+      if (foundUser) {
+        // Check if user has 2FA enabled
+        const has2FA = TwoFactorAuthService.is2FAEnabled(foundUser.email);
+        console.log(`2FA check for ${foundUser.email}: ${has2FA}`);
         
-        // Try to find user in default users
-        const foundUser = defaultUsers.find(u => u.email === email && u.password === password);
-        if (foundUser) {
-          completeLogin(foundUser);
+        if (has2FA) {
+          console.log("Showing 2FA verification modal");
+          // Show 2FA verification modal
+          setPendingUser(foundUser);
+          setShowTwoFactorVerification(true);
           return;
         }
+
+        console.log("Completing login without 2FA");
+        // Complete login without 2FA
+        completeLogin(foundUser);
+        return;
+      } else {
+        console.log("No matching user found");
       }
 
       // If both API and localStorage fail
@@ -304,6 +329,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const products = localStorage.getItem('products');
     const orders = localStorage.getItem('orders');
     const customers = localStorage.getItem('customers');
+    const students = localStorage.getItem('students');
     const twoFactorKeys = Object.keys(localStorage).filter(key => key.startsWith('2fa_'));
     const twoFactorData: { [key: string]: string } = {};
     
@@ -337,6 +363,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     if (customers) {
       localStorage.setItem('customers', customers);
+    }
+    
+    if (students) {
+      localStorage.setItem('students', students);
     }
     
     // Restore 2FA data

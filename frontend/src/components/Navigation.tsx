@@ -57,6 +57,12 @@ const Navigation: React.FC<NavigationProps> = ({ isOpen }) => {
       roles: ['admin', 'cashier']
     },
     {
+      name: 'Canteen Management',
+      path: '/canteen',
+      icon: '🏢',
+      roles: ['admin']
+    },
+    {
       name: 'Users',
       path: '/users',
       icon: '👤',

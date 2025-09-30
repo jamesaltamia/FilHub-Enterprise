@@ -23,30 +23,36 @@ class UserSeeder extends Seeder
             return;
         }
 
-        // Create admin user
-        $admin = User::create([
-            'name' => 'Admin User',
-            'email' => 'admin@filhub.com',
-            'password' => Hash::make('admin123'),
-            'phone' => '+1234567890',
-            'address' => 'Admin Address',
-            'is_active' => true,
-        ]);
+        // Create or update admin user
+        $admin = User::updateOrCreate(
+            ['email' => 'admin@filhub.com'],
+            [
+                'name' => 'Admin User',
+                'password' => Hash::make('admin123'),
+                'phone' => '+1234567890',
+                'address' => 'Admin Address',
+                'is_active' => true,
+            ]
+        );
 
-        // Assign admin role
+        // Assign admin role (detach first to avoid duplicates)
+        $admin->roles()->detach();
         $admin->roles()->attach($adminRole->id);
 
-        // Create cashier user
-        $cashier = User::create([
-            'name' => 'Cashier User',
-            'email' => 'cashier@filhub.com',
-            'password' => Hash::make('cashier123'),
-            'phone' => '+1234567891',
-            'address' => 'Cashier Address',
-            'is_active' => true,
-        ]);
+        // Create or update cashier user
+        $cashier = User::updateOrCreate(
+            ['email' => 'cashier@filhub.com'],
+            [
+                'name' => 'Cashier User',
+                'password' => Hash::make('cashier123'),
+                'phone' => '+1234567891',
+                'address' => 'Cashier Address',
+                'is_active' => true,
+            ]
+        );
 
-        // Assign cashier role
+        // Assign cashier role (detach first to avoid duplicates)
+        $cashier->roles()->detach();
         $cashier->roles()->attach($cashierRole->id);
 
         $this->command->info('Users created successfully!');

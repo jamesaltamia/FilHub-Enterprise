@@ -4,15 +4,18 @@ import type { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
 // API base configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
-// Create axios instance
+// Create axios instance with aggressive performance settings
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 3000, // Reduced timeout to 3 seconds for faster fallback
+  timeout: 1500, // Very aggressive 1.5 second timeout for instant fallback
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
   withCredentials: true,
+  // Performance optimizations
+  maxRedirects: 0, // Disable redirects for faster response
+  validateStatus: (status) => status < 500, // Accept all non-server-error responses
 });
 
 // Request interceptor to add auth token
@@ -35,23 +38,20 @@ api.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      // Only logout for authentication endpoints, not for general API failures
-      const url = error.config?.url || '';
-      const isAuthEndpoint = url.includes('/auth/') || url.includes('/login') || url.includes('/logout');
-
-      if (isAuthEndpoint) {
-        // Unauthorized on auth endpoints - clear token and redirect to login
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('user');
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
-      } else {
-        // For other endpoints, just log the error but don't logout
-        console.log('API request failed (expected in demo mode):', url);
+    // Suppress console errors for demo mode - only log critical auth failures
+    const url = error.config?.url || '';
+    const isAuthEndpoint = url.includes('/auth/') || url.includes('/login') || url.includes('/logout');
+    
+    if (error.response?.status === 401 && isAuthEndpoint) {
+      // Unauthorized on auth endpoints - clear token and redirect to login
+      console.log('Authentication failed, redirecting to login');
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user');
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
       }
     }
+    // Silently handle all other API failures (expected in demo mode)
     return Promise.reject(error);
   }
 );

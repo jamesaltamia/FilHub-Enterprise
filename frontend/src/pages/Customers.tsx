@@ -1,19 +1,24 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useState, useRef } from "react";
 import Papa from "papaparse";
 import { StudentsContext, type Student } from "../contexts/StudentsContext";
+import { useTheme } from "../contexts/ThemeContext";
 
 const Customers: React.FC = () => {
   const context = useContext(StudentsContext);
   if (!context) throw new Error("StudentsContext is missing");
 
-  const { students, addStudent, updateStudent, deleteStudent, setStudents } =
+  const { students, addStudent, addMultipleStudents, updateStudent, deleteStudent } =
     context;
+  
+  const { theme } = useTheme();
 
   const [search, setSearch] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isViewing, setIsViewing] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Filter by name or ID
   const filteredStudents = students.filter(
@@ -28,24 +33,57 @@ const Customers: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setUploadStatus("Uploading...");
+
     Papa.parse(file, {
       header: false,
       skipEmptyLines: true,
       complete: (results) => {
-        const parsedData = results.data as string[][];
-        const mapped: Student[] = parsedData.map((row) => ({
-          student_id: row[0],
-          first_name: row[1],
-          last_name: row[2],
-          course: row[3],
-          year_level: row[4],
-          address: row[5],
-          barcode: row[6],
-        }));
+        try {
+          const parsedData = results.data as string[][];
+          // Filter out empty rows
+          const validRows = parsedData.filter(row => row.length >= 7 && row[0]?.trim());
+          
+          const mapped: Student[] = validRows.map((row) => ({
+            student_id: row[0]?.trim() || "",
+            first_name: row[1]?.trim() || "",
+            last_name: row[2]?.trim() || "",
+            course: row[3]?.trim() || "",
+            year_level: row[4]?.trim() || "",
+            address: row[5]?.trim() || "",
+            barcode: row[6]?.trim() || "",
+          }));
 
-        const merged = [...students, ...mapped];
-        setStudents(merged);
+          // Use batch add function to properly handle localStorage saving
+          addMultipleStudents(mapped);
+          
+          // Clear the file input using ref
+          if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+          }
+          
+          // Show success message
+          setUploadStatus(`Successfully processed ${mapped.length} students from CSV file`);
+          
+          // Clear status after 5 seconds
+          setTimeout(() => setUploadStatus(""), 5000);
+        } catch (error) {
+          console.error("Error processing CSV data:", error);
+          setUploadStatus("Error processing CSV data");
+          if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+          }
+          setTimeout(() => setUploadStatus(""), 3000);
+        }
       },
+      error: (error) => {
+        console.error("CSV parsing error:", error);
+        setUploadStatus("Error uploading file");
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        setTimeout(() => setUploadStatus(""), 3000);
+      }
     });
   };
 
@@ -112,18 +150,38 @@ const Customers: React.FC = () => {
 
       {/* Search + Upload */}
       <div className="flex items-center gap-4 mb-4">
-        <input
-          type="file"
-          accept=".csv"
-          onChange={handleFileUpload}
-          className="border p-2 rounded"
-        />
+        <div className="flex flex-col">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            onChange={handleFileUpload}
+            className={`border p-2 rounded ${
+              theme === 'dark' 
+                ? 'bg-gray-700 border-gray-600 text-gray-200' 
+                : 'bg-white border-gray-300 text-gray-900'
+            }`}
+          />
+          {uploadStatus && (
+            <span className={`text-sm mt-1 ${
+              uploadStatus.includes("Error") ? "text-red-600" : 
+              uploadStatus.includes("Successfully") ? "text-green-600" : 
+              "text-blue-600"
+            }`}>
+              {uploadStatus}
+            </span>
+          )}
+        </div>
         <input
           type="text"
           placeholder="Search by name or ID..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="border p-2 rounded w-64"
+          className={`border p-2 rounded w-64 ${
+            theme === 'dark' 
+              ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' 
+              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+          }`}
         />
       </div>
 
@@ -206,7 +264,7 @@ const Customers: React.FC = () => {
                 type="text"
                 className="border p-2 rounded mb-2 w-full"
                 placeholder={field.replace("_", " ").toUpperCase()}
-                value={(selectedStudent as any)[field]}
+                value={selectedStudent[field as keyof Student]}
                 onChange={(e) =>
                   setSelectedStudent({
                     ...selectedStudent,

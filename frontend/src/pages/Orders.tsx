@@ -23,6 +23,12 @@ interface Order {
     name: string;
     quantity: number;
     price: number;
+    uniform_size?: string;
+    uniform_gender?: string;
+    category?: {
+      id: number;
+      name: string;
+    };
   }>;
   subtotal: number;
   discount_amount: number;
@@ -449,7 +455,7 @@ const Orders: React.FC = () => {
       </head>
       <body>
         <div class="header">
-          <h2>FILHUB ENTERPRISE</h2>
+          <h2>UNIVERSITY ENTERPRISES</h2>
         </div>
         
         <div class="order-info">
@@ -490,7 +496,7 @@ const Orders: React.FC = () => {
           <div class="thank-you">THANK YOU FOR PURCHASING!</div>
           <p>Please keep this receipt for your records</p>
           <p style="margin-top: 15px; font-size: 9px;">
-            Powered by FilHub Enterprise System<br>
+            By University Enterprises System<br>
             ${new Date().toLocaleString()}
           </p>
         </div>

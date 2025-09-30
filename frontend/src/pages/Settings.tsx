@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { TwoFactorAuthService } from '../utils/twoFactorAuth';
 import { settingsAPI } from '../services/api';
+import DataMigrationModal from '../components/DataMigrationModal';
 
 const Settings: React.FC = () => {
   const { user } = useAuth();
@@ -29,18 +29,20 @@ const Settings: React.FC = () => {
     confirmPassword: ''
   });
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [show2FAModal, setShow2FAModal] = useState(false);
+  const [showRecaptchaModal, setShowRecaptchaModal] = useState(false);
   const [showSessionsModal, setShowSessionsModal] = useState(false);
-  const [is2FAEnabled, setIs2FAEnabled] = useState(false);
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
+  const [showMigrationModal, setShowMigrationModal] = useState(false);
+  const [isRecaptchaEnabled, setIsRecaptchaEnabled] = useState(false);
+  const [recaptchaSiteKey, setRecaptchaSiteKey] = useState('');
+  const [recaptchaSecretKey, setRecaptchaSecretKey] = useState('');
   const [loginSessions, setLoginSessions] = useState<any[]>([]);
 
   useEffect(() => {
-    // Check if 2FA is enabled for current user
-    if (user?.email) {
-      setIs2FAEnabled(TwoFactorAuthService.is2FAEnabled(user.email));
-    }
+    // Check if reCAPTCHA is enabled
+    const recaptchaSettings = JSON.parse(localStorage.getItem('recaptchaSettings') || '{}');
+    setIsRecaptchaEnabled(recaptchaSettings.enabled || false);
+    setRecaptchaSiteKey(recaptchaSettings.siteKey || '');
+    setRecaptchaSecretKey(recaptchaSettings.secretKey || '');
     
     // Load login sessions from localStorage
     const sessions = JSON.parse(localStorage.getItem('loginSessions') || '[]');
@@ -76,38 +78,37 @@ const Settings: React.FC = () => {
     setShowPasswordModal(false);
   };
 
-  const handle2FAToggle = () => {
-    if (!user?.email) return;
-    
-    if (is2FAEnabled) {
-      // Disable 2FA
-      TwoFactorAuthService.disable2FA(user.email);
-      setIs2FAEnabled(false);
-      alert('Two-Factor Authentication disabled');
+  const handleRecaptchaToggle = () => {
+    if (isRecaptchaEnabled) {
+      // Disable reCAPTCHA
+      const recaptchaSettings = { enabled: false, siteKey: '', secretKey: '' };
+      localStorage.setItem('recaptchaSettings', JSON.stringify(recaptchaSettings));
+      setIsRecaptchaEnabled(false);
+      setRecaptchaSiteKey('');
+      setRecaptchaSecretKey('');
+      alert('reCAPTCHA protection disabled');
     } else {
-      // Enable 2FA - show setup modal
-      const qrUrl = TwoFactorAuthService.generateQRCode(user.email);
-      setQrCodeUrl(qrUrl);
-      setShow2FAModal(true);
+      // Enable reCAPTCHA - show setup modal
+      setShowRecaptchaModal(true);
     }
   };
 
-  const verify2FASetup = () => {
-    if (!user?.email || !verificationCode) {
-      alert('Please enter the verification code');
+  const saveRecaptchaSettings = () => {
+    if (!recaptchaSiteKey.trim() || !recaptchaSecretKey.trim()) {
+      alert('Please enter both Site Key and Secret Key');
       return;
     }
     
-    const isValid = TwoFactorAuthService.verifyToken(user.email, verificationCode);
-    if (isValid) {
-      TwoFactorAuthService.enable2FA(user.email);
-      setIs2FAEnabled(true);
-      setShow2FAModal(false);
-      setVerificationCode('');
-      alert('Two-Factor Authentication enabled successfully!');
-    } else {
-      alert('Invalid verification code. Please try again.');
-    }
+    const recaptchaSettings = {
+      enabled: true,
+      siteKey: recaptchaSiteKey.trim(),
+      secretKey: recaptchaSecretKey.trim()
+    };
+    
+    localStorage.setItem('recaptchaSettings', JSON.stringify(recaptchaSettings));
+    setIsRecaptchaEnabled(true);
+    setShowRecaptchaModal(false);
+    alert('reCAPTCHA protection enabled successfully!');
   };
 
   const addCurrentSession = () => {
@@ -355,32 +356,37 @@ const Settings: React.FC = () => {
                         </div>
                       </div>
                       
-                      {/* Two-Factor Authentication */}
+                      {/* reCAPTCHA Protection */}
                       <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200'} border`}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-3">
-                            <span className="text-2xl">🔐</span>
+                            <span className="text-2xl">🤖</span>
                             <div>
                               <h3 className={`font-semibold ${theme === 'dark' ? 'text-blue-200' : 'text-blue-800'}`}>
-                                Two-Factor Authentication
+                                reCAPTCHA Protection
                               </h3>
                               <p className={`text-sm ${theme === 'dark' ? 'text-blue-300' : 'text-blue-700'}`}>
-                                Add an extra layer of security to your account
+                                Protect your application from bots and spam
                               </p>
-                              <div className={`text-xs mt-1 ${is2FAEnabled ? 'text-green-600' : 'text-gray-500'}`}>
-                                Status: {is2FAEnabled ? '✅ Enabled' : '❌ Disabled'}
+                              <div className={`text-xs mt-1 ${isRecaptchaEnabled ? 'text-green-600' : 'text-gray-500'}`}>
+                                Status: {isRecaptchaEnabled ? '✅ Enabled' : '❌ Disabled'}
                               </div>
+                              {isRecaptchaEnabled && recaptchaSiteKey && (
+                                <div className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                                  Site Key: {recaptchaSiteKey.substring(0, 20)}...
+                                </div>
+                              )}
                             </div>
                           </div>
                           <button
-                            onClick={handle2FAToggle}
+                            onClick={handleRecaptchaToggle}
                             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                              is2FAEnabled 
+                              isRecaptchaEnabled 
                                 ? (theme === 'dark' ? 'bg-red-800 text-red-200 hover:bg-red-700' : 'bg-red-200 text-red-800 hover:bg-red-300')
                                 : (theme === 'dark' ? 'bg-blue-800 text-blue-200 hover:bg-blue-700' : 'bg-blue-200 text-blue-800 hover:bg-blue-300')
                             }`}
                           >
-                            {is2FAEnabled ? 'Disable 2FA' : 'Enable 2FA'}
+                            {isRecaptchaEnabled ? 'Disable reCAPTCHA' : 'Setup reCAPTCHA'}
                           </button>
                         </div>
                       </div>
@@ -617,6 +623,32 @@ const Settings: React.FC = () => {
                           </div>
                         </div>
                       </div>
+
+                      <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-purple-900/20 border-purple-700' : 'bg-purple-50 border-purple-200'} border`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <span className="text-2xl">🚀</span>
+                            <div>
+                              <h3 className={`font-semibold ${theme === 'dark' ? 'text-purple-200' : 'text-purple-800'}`}>
+                                Migrate to Database
+                              </h3>
+                              <p className={`text-sm ${theme === 'dark' ? 'text-purple-300' : 'text-purple-700'}`}>
+                                Transfer localStorage data to backend database
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowMigrationModal(true)}
+                            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                              theme === 'dark' 
+                                ? 'bg-purple-600 text-white hover:bg-purple-700' 
+                                : 'bg-purple-600 text-white hover:bg-purple-700'
+                            }`}
+                          >
+                            Start Migration
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -695,16 +727,16 @@ const Settings: React.FC = () => {
         </div>
       )}
 
-      {/* 2FA Setup Modal */}
-      {show2FAModal && (
+      {/* reCAPTCHA Setup Modal */}
+      {showRecaptchaModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-6 w-full max-w-md mx-4`}>
+          <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-6 w-full max-w-lg mx-4`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                Setup Two-Factor Authentication
+                Setup reCAPTCHA Protection
               </h3>
               <button
-                onClick={() => setShow2FAModal(false)}
+                onClick={() => setShowRecaptchaModal(false)}
                 className={`text-gray-500 hover:text-gray-700 ${theme === 'dark' ? 'hover:text-gray-300' : ''}`}
               >
                 ✕
@@ -713,39 +745,66 @@ const Settings: React.FC = () => {
             <div className="space-y-4">
               <div className="text-center">
                 <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100'} mb-4`}>
-                  <div className="text-6xl mb-2">📱</div>
+                  <div className="text-6xl mb-2">🤖</div>
                   <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                    Scan this QR code with your authenticator app
+                    Configure Google reCAPTCHA to protect your application
                   </p>
-                  <div className="mt-2 p-2 bg-white rounded">
-                    <img src={qrCodeUrl} alt="QR Code" className="mx-auto" />
-                  </div>
                 </div>
               </div>
+              
+              <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200'} border`}>
+                <p className={`text-xs ${theme === 'dark' ? 'text-blue-300' : 'text-blue-700'}`}>
+                  💡 <strong>How to get reCAPTCHA keys:</strong><br/>
+                  1. Visit <a href="https://www.google.com/recaptcha/admin" target="_blank" rel="noopener noreferrer" className="underline">Google reCAPTCHA Admin</a><br/>
+                  2. Register a new site with your domain<br/>
+                  3. Copy the Site Key and Secret Key
+                </p>
+              </div>
+              
               <div>
                 <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Enter Verification Code
+                  🔑 Site Key (Public)
                 </label>
                 <input
                   type="text"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value)}
-                  placeholder="000000"
-                  className={`w-full px-3 py-2 border rounded-lg text-center ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                  value={recaptchaSiteKey}
+                  onChange={(e) => setRecaptchaSiteKey(e.target.value)}
+                  placeholder="6Lc6BAAAAAAAAChqRbQZcn_yyyyyyyyyyyyyyyyy"
+                  className={`w-full px-3 py-2 border rounded-lg ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'}`}
                 />
               </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                  🔐 Secret Key (Private)
+                </label>
+                <input
+                  type="password"
+                  value={recaptchaSecretKey}
+                  onChange={(e) => setRecaptchaSecretKey(e.target.value)}
+                  placeholder="6Lc6BAAAAAAAAKN3DRm6VA_xxxxxxxxxxxxxxxxx"
+                  className={`w-full px-3 py-2 border rounded-lg ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'}`}
+                />
+              </div>
+              
+              <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-yellow-900/20 border-yellow-700' : 'bg-yellow-50 border-yellow-200'} border`}>
+                <p className={`text-xs ${theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700'}`}>
+                  ⚠️ <strong>Security Note:</strong> Keep your Secret Key private and never share it publicly.
+                </p>
+              </div>
+              
               <div className="flex space-x-3 pt-4">
                 <button
-                  onClick={() => setShow2FAModal(false)}
+                  onClick={() => setShowRecaptchaModal(false)}
                   className={`flex-1 px-4 py-2 rounded-lg font-medium ${theme === 'dark' ? 'bg-gray-600 text-gray-200 hover:bg-gray-500' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={verify2FASetup}
+                  onClick={saveRecaptchaSettings}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
                 >
-                  Verify & Enable
+                  Save & Enable
                 </button>
               </div>
             </div>
@@ -828,6 +887,12 @@ const Settings: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Data Migration Modal */}
+      <DataMigrationModal 
+        isOpen={showMigrationModal} 
+        onClose={() => setShowMigrationModal(false)} 
+      />
     </div>
   );
 };

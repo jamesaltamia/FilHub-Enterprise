@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FilHub API Test</title>
+</head>
+<body>
+    <h1>FilHub API Test</h1>
+    <div id="results"></div>
+    
+    <script>
+        async function testAPI() {
+            const results = document.getElementById('results');
+            
+            try {
+                // Test login
+                console.log('Testing login...');
+                const loginResponse = await fetch('http://localhost:8001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'admin@filhub.com',
+                        password: 'admin123'
+                    })
+                });
+                
+                console.log('Login response status:', loginResponse.status);
+                const loginData = await loginResponse.json();
+                console.log('Login data:', loginData);
+                
+                if (loginResponse.ok && loginData.success) {
+                    results.innerHTML += '<p>✅ Login successful!</p>';
+                    const token = loginData.data.token;
+                    
+                    // Test categories API
+                    console.log('Testing categories API...');
+                    const categoriesResponse = await fetch('http://localhost:8001/api/categories', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    console.log('Categories response status:', categoriesResponse.status);
+                    const categoriesData = await categoriesResponse.json();
+                    console.log('Categories data:', categoriesData);
+                    
+                    if (categoriesResponse.ok) {
+                        results.innerHTML += '<p>✅ Categories API working!</p>';
+                        results.innerHTML += `<p>Categories count: ${categoriesData.data?.length || 0}</p>`;
+                    } else {
+                        results.innerHTML += '<p>❌ Categories API failed</p>';
+                    }
+                } else {
+                    results.innerHTML += '<p>❌ Login failed</p>';
+                    results.innerHTML += `<p>Error: ${loginData.message}</p>`;
+                }
+                
+            } catch (error) {
+                console.error('API test error:', error);
+                results.innerHTML += `<p>❌ API test failed: ${error.message}</p>`;
+            }
+        }
+        
+        // Run test when page loads
+        window.onload = testAPI;
+    </script>
+</body>
+</html>

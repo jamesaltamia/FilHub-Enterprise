@@ -18,6 +18,7 @@ export interface Student {
 interface StudentsContextType {
   students: Student[];
   addStudent: (student: Student) => void;
+  addMultipleStudents: (students: Student[]) => void;
   updateStudent: (student: Student) => void;
   deleteStudent: (id: string) => void;
   setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
@@ -55,6 +56,14 @@ export const StudentsProvider: React.FC<{ children: ReactNode }> = ({
     setStudents((prev) => [...prev, student]);
   };
 
+  const addMultipleStudents = (newStudents: Student[]) => {
+    setStudents((prev) => {
+      const existingIds = prev.map(s => s.student_id);
+      const uniqueStudents = newStudents.filter(s => s.student_id && !existingIds.includes(s.student_id));
+      return [...prev, ...uniqueStudents];
+    });
+  };
+
   const updateStudent = (student: Student) => {
     setStudents((prev) =>
       prev.map((s) => (s.student_id === student.student_id ? student : s))
@@ -70,6 +79,7 @@ export const StudentsProvider: React.FC<{ children: ReactNode }> = ({
       value={{
         students,
         addStudent,
+        addMultipleStudents,
         updateStudent,
         deleteStudent,
         setStudents,

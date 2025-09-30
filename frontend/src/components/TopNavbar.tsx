@@ -30,6 +30,8 @@ const TopNavbar: React.FC<TopNavbarProps> = ({ isSidebarOpen, toggleSidebar }) =
         return 'Customers';
       case '/reports':
         return 'Reports';
+      case '/canteen':
+        return 'Canteen';
       case '/users':
         return 'Users';
       case '/settings':

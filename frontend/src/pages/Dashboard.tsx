@@ -91,8 +91,8 @@ const Dashboard: React.FC = () => {
           customers = Array.isArray(customersResponse.data.data) ? customersResponse.data.data : (Array.isArray(customersResponse.data) ? customersResponse.data : []);
           localStorage.setItem('customers', JSON.stringify(customers));
         }
-      } catch (apiError) {
-        console.log('Backend API failed, using localStorage fallback:', apiError);
+      } catch {
+        // Silently fallback to localStorage (expected in demo mode)
         
         // Fallback to localStorage
         orders = JSON.parse(localStorage.getItem('orders') || '[]');

@@ -25,6 +25,9 @@ interface Product {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // Uniform-specific fields
+  uniform_size?: string;
+  uniform_gender?: string;
 }
 
 interface SaleItem {
@@ -35,6 +38,13 @@ interface SaleItem {
   stock: number;
   total: number;
   image?: string;
+  // Uniform-specific fields
+  uniform_size?: string;
+  uniform_gender?: string;
+  category?: {
+    id: number;
+    name: string;
+  };
 }
 
 interface Customer {
@@ -55,6 +65,10 @@ interface Customer {
   // Additional fields
   address?: string;
   barcode?: string;
+  // Teacher-specific fields
+  is_teacher?: boolean;
+  department?: string;
+  employee_id?: string;
 }
 
 // Educational Data Constants
@@ -341,6 +355,14 @@ const Sales: React.FC = () => {
   const [customer, setCustomer] = useState<Customer>({
     name: "",
   });
+  
+  // Teacher purchase mode
+  const [isTeacherPurchase, setIsTeacherPurchase] = useState(false);
+  const [teacherInfo, setTeacherInfo] = useState({
+    name: "",
+    department: "",
+    employee_id: ""
+  });
 
   // Payment and totals
   const [subtotal, setSubtotal] = useState(0);
@@ -371,50 +393,59 @@ const Sales: React.FC = () => {
     course: "",
   });
 
-  // Fetch products for sale
+  // Optimized fetch products for sale - prioritize speed
   const fetchProducts = async () => {
     try {
-      setLoading(true);
-      setError(null);
-
-      // Always prioritize localStorage data for Sales page
+      // Immediate localStorage load - no loading state for instant response
       const storedProducts = JSON.parse(
         localStorage.getItem("products") || "[]"
       );
+      
       if (storedProducts.length > 0) {
-        // Only show active products with stock
+        // Only show active products with stock - optimized filter
         const activeProducts = storedProducts.filter(
           (product: Product) => product.is_active && product.stock_quantity > 0
         );
         setProducts(activeProducts);
-        console.log("Sales: Loaded products from localStorage");
-      } else {
-        // Try API as fallback, but don't let it cause logout
-        try {
-          console.log("Sales: Trying API fallback for products");
-          const response = await productsAPI.getAll({ per_page: 100 });
-          if (response && response.data) {
-            const productsData = Array.isArray(response.data.data)
-              ? response.data.data
-              : Array.isArray(response.data)
-              ? response.data
-              : [];
-            const activeProducts = productsData.filter(
-              (product: Product) =>
-                product.is_active && product.stock_quantity > 0
-            );
-            setProducts(activeProducts);
-            console.log("Sales: Loaded products from API");
-          } else {
-            setProducts([]);
-          }
-        } catch {
-          console.log(
-            "Sales: API failed (expected in demo mode), using empty product list"
+        console.log("Sales: Instant load from localStorage");
+        return; // Exit early for maximum speed
+      }
+
+      // Only set loading if no localStorage data
+      setLoading(true);
+      setError(null);
+
+      // Quick API fallback with aggressive timeout
+      try {
+        console.log("Sales: Quick API fallback");
+        const response = await Promise.race([
+          productsAPI.getAll({ per_page: 100 }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('API timeout')), 1000)
+          )
+        ]);
+        
+        if (response && response.data) {
+          const productsData = Array.isArray(response.data.data)
+            ? response.data.data
+            : Array.isArray(response.data)
+            ? response.data
+            : [];
+          const activeProducts = productsData.filter(
+            (product: Product) =>
+              product.is_active && product.stock_quantity > 0
           );
+          setProducts(activeProducts);
+          console.log("Sales: Loaded products from API");
+        } else {
           setProducts([]);
-          // Don't show error for API failures in demo mode
         }
+      } catch {
+        console.log(
+          "Sales: API failed (expected in demo mode), using empty product list"
+        );
+        setProducts([]);
+        // Don't show error for API failures in demo mode
       }
     } catch (err: unknown) {
       console.error("Error fetching products:", err);
@@ -449,6 +480,9 @@ const Sales: React.FC = () => {
             stock: product.stock_quantity,
             total: price,
             image: product.image,
+            uniform_size: product.uniform_size,
+            uniform_gender: product.uniform_gender,
+            category: product.category,
           },
         ]);
       }
@@ -456,16 +490,17 @@ const Sales: React.FC = () => {
     [saleItems]
   );
 
+  // Single useEffect for initialization and navigation handling
   useEffect(() => {
+    // Fetch products only once on mount
     fetchProducts();
-
     // If redirected from Products page with a product, add it to sale
     if (productFromNavigation) {
       addToSale(productFromNavigation);
       // Clear the navigation state to prevent re-adding on refresh
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [productFromNavigation, addToSale, location.pathname, navigate]);
+  }, []); // Empty dependency array - only run once on mount
 
   // Handle education level change and reset dependent fields
   const handleEducationLevelChange = (educationLevel: string) => {
@@ -489,11 +524,6 @@ const Sales: React.FC = () => {
       course: "",
     }));
   };
-
-
-  useEffect(() => {
-    fetchProducts();
-  }, []);
 
   // Calculate totals whenever sale items change
   useEffect(() => {
@@ -552,71 +582,115 @@ const Sales: React.FC = () => {
         ? createEducationalSummary(customer)
         : "";
 
-      // Try to create/update customer in backend first
-      if (customer.name) {
-        try {
-          if (customer.id) {
-            // Update existing customer
-            await customersAPI.update(customer.id, {
-              name: customer.name,
-              education_level: customer.education_level,
-              year: customer.year,
-              grade_level: customer.grade_level,
-              section: customer.section,
-              strand: customer.strand,
-              college: customer.college,
-              course: customer.course,
-            });
-            backendCustomerId = customer.id;
-          } else {
-            // Create new customer
-            const customerResponse = await customersAPI.create({
-              name: customer.name,
-              education_level: customer.education_level,
-              year: customer.year,
-              grade_level: customer.grade_level,
-              section: customer.section,
-              strand: customer.strand,
-              college: customer.college,
-              course: customer.course,
-            });
-            backendCustomerId = customerResponse.data.id;
+      // Handle teacher purchases or regular customer purchases
+      const customerName = isTeacherPurchase ? teacherInfo.name : customer.name;
+      
+      // Try API calls with timeout, but don't block the sale process
+      if (customerName) {
+        // Non-blocking API calls with timeout
+        const apiTimeout = 2000; // 2 second timeout
+        
+        const tryCustomerAPI = async () => {
+          try {
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('API timeout')), apiTimeout)
+            );
+            
+            if (isTeacherPurchase) {
+              const teacherCustomerData = {
+                name: teacherInfo.name,
+                department: teacherInfo.department,
+                is_teacher: true,
+                employee_id: teacherInfo.employee_id,
+                education_level: "Teacher",
+              };
+              
+              const customerResponse = await Promise.race([
+                customersAPI.create(teacherCustomerData),
+                timeoutPromise
+              ]);
+              backendCustomerId = customerResponse.data.id;
+              console.log("Teacher created in backend:", backendCustomerId);
+            } else {
+              if (customer.id) {
+                await Promise.race([
+                  customersAPI.update(customer.id, {
+                    name: customer.name,
+                    education_level: customer.education_level,
+                    year: customer.year,
+                    grade_level: customer.grade_level,
+                    section: customer.section,
+                    strand: customer.strand,
+                    college: customer.college,
+                    course: customer.course,
+                  }),
+                  timeoutPromise
+                ]);
+                backendCustomerId = customer.id;
+              } else {
+                const customerResponse = await Promise.race([
+                  customersAPI.create({
+                    name: customer.name,
+                    education_level: customer.education_level,
+                    year: customer.year,
+                    grade_level: customer.grade_level,
+                    section: customer.section,
+                    strand: customer.strand,
+                    college: customer.college,
+                    course: customer.course,
+                  }),
+                  timeoutPromise
+                ]);
+                backendCustomerId = customerResponse.data.id;
+              }
+            }
+          } catch (customerError) {
+            console.log("Customer API failed (using localStorage):", customerError.message || 'timeout');
           }
-        } catch (customerError) {
-          console.log(
-            "Customer API failed, using localStorage fallback:",
-            customerError
-          );
-        }
-      }
-
-      // Try to create order in backend
-      try {
-        const orderData = {
-          customer_id: backendCustomerId,
-          items: saleItems.map((item) => ({
-            product_id: item.id,
-            qty: item.quantity,
-            price: item.price,
-          })),
-          paid_amount: paidAmount,
-          discount_amount: discountAmount,
-          tax_amount: taxAmount,
-          notes: customer.name
-            ? `Customer: ${customer.name}`
-            : "Walk-in customer",
-          order_status: "completed" as const,
         };
-
-        const orderResponse = await ordersAPI.create(orderData);
-        backendOrderId = orderResponse.data.id;
-        console.log("Order created in backend successfully:", backendOrderId);
-      } catch (orderError) {
-        console.log(
-          "Order API failed, using localStorage fallback:",
-          orderError
-        );
+        
+        // Start API call but don't wait for it
+        tryCustomerAPI();
       }
+
+      // Try to create order in backend (non-blocking with timeout)
+      const tryOrderAPI = async () => {
+        try {
+          const orderData = {
+            customer_id: backendCustomerId,
+            items: saleItems.map((item) => ({
+              product_id: item.id,
+              qty: item.quantity,
+              price: item.price,
+            })),
+            paid_amount: paidAmount,
+            discount_amount: discountAmount,
+            tax_amount: taxAmount,
+            notes: customerName
+              ? isTeacherPurchase 
+                ? `Teacher: ${teacherInfo.name} (${teacherInfo.department})`
+                : `Customer: ${customerName}`
+              : "Walk-in customer",
+            order_status: "completed" as const,
+          };
+
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Order API timeout')), 2000)
+          );
+
+          const orderResponse = await Promise.race([
+            ordersAPI.create(orderData),
+            timeoutPromise
+          ]);
+          backendOrderId = orderResponse.data.id;
+          console.log("Order created in backend:", backendOrderId);
+        } catch (orderError) {
+          console.log("Order API failed (using localStorage):", orderError.message || 'timeout');
+        }
+      };
+      
+      // Start order API call but don't wait for it
+      tryOrderAPI();
 
       // Update product stock quantities (localStorage fallback)
       const existingProducts = JSON.parse(
@@ -638,29 +712,37 @@ const Sales: React.FC = () => {
       localStorage.setItem("products", JSON.stringify(updatedProducts));
 
       // Update customer data in localStorage (fallback/sync)
-      if (customer.id || customer.name) {
+      const customerData = isTeacherPurchase ? {
+        name: teacherInfo.name,
+        department: teacherInfo.department,
+        employee_id: teacherInfo.employee_id,
+        is_teacher: true,
+        education_level: "Teacher"
+      } : customer;
+
+      if (customerData.name) {
         const existingCustomers = JSON.parse(
           localStorage.getItem("customers") || "[]"
         ) as Customer[];
         const customerIndex = existingCustomers.findIndex(
-          (c) => c.id === customer.id || c.name === customer.name
+          (c) => c.name === customerData.name || (isTeacherPurchase && c.employee_id === teacherInfo.employee_id)
         );
 
         if (customerIndex >= 0) {
           // Update existing customer
           existingCustomers[customerIndex] = {
             ...existingCustomers[customerIndex],
-            ...customer,
+            ...customerData,
             total_orders:
               (existingCustomers[customerIndex].total_orders || 0) + 1,
             total_spent:
               (existingCustomers[customerIndex].total_spent || 0) + total,
             last_order_date: new Date().toISOString().split("T")[0],
           };
-        } else if (customer.name) {
+        } else {
           // Add new customer
           const newCustomer = {
-            ...customer,
+            ...customerData,
             id: backendCustomerId || Date.now(),
             total_orders: 1,
             total_spent: total,
@@ -679,12 +761,16 @@ const Sales: React.FC = () => {
       const newOrder = {
         id: backendOrderId || Date.now(),
         order_number: `ORD-${backendOrderId || Date.now()}`,
-        customer_id: backendCustomerId || customer.id || null,
-        customer: customer.name
+        customer_id: backendCustomerId || customerData.id || null,
+        customer: customerData.name
           ? {
-              id: backendCustomerId || customer.id,
-              name: customer.name,
-              educational_summary: educationalSummary,
+              id: backendCustomerId || customerData.id,
+              name: customerData.name,
+              educational_summary: isTeacherPurchase ? "Teacher" : educationalSummary,
+              department: customerData.department,
+              is_teacher: customerData.is_teacher,
+              education_level: customerData.education_level,
+              employee_id: customerData.employee_id,
             }
           : null,
         user: {
@@ -704,8 +790,10 @@ const Sales: React.FC = () => {
         payment_status:
           paidAmount >= total ? "paid" : paidAmount > 0 ? "partial" : "pending",
         order_status: "completed",
-        notes: customer.name
-          ? `Customer: ${customer.name}`
+        notes: customerData.name
+          ? isTeacherPurchase 
+            ? `Teacher: ${customerData.name} (${customerData.department})`
+            : `Customer: ${customerData.name}`
           : "Walk-in customer",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -930,6 +1018,29 @@ const Sales: React.FC = () => {
                       >
                         {product.name}
                       </h3>
+                      
+                      {/* Show uniform details if available */}
+                      {(product.uniform_size || product.uniform_gender) && (
+                        <div className="flex justify-center items-center space-x-1 mb-2">
+                          {product.uniform_size && (
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                              theme === 'dark' ? 'bg-purple-900 text-purple-200' : 'bg-purple-100 text-purple-800'
+                            }`}>
+                              <span className="mr-1">📏</span>
+                              {product.uniform_size}
+                            </span>
+                          )}
+                          {product.uniform_gender && (
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                              theme === 'dark' ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              <span className="mr-1">{product.uniform_gender === 'Men' ? '👨' : '👩'}</span>
+                              {product.uniform_gender}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      
                       <p
                         className={`text-xs mb-3 text-center ${
                           theme === "dark" ? "text-gray-400" : "text-gray-500"
@@ -999,6 +1110,142 @@ const Sales: React.FC = () => {
                 </div>
               </div>
 
+              {/* Teacher Purchase Toggle */}
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className={`text-sm font-medium ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
+                      👩‍🏫 Teacher Purchase
+                    </span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isTeacherPurchase}
+                        onChange={(e) => {
+                          setIsTeacherPurchase(e.target.checked);
+                          if (!e.target.checked) {
+                            setTeacherInfo({
+                              name: "",
+                              department: "",
+                              employee_id: ""
+                            });
+                          }
+                        }}
+                        className="sr-only"
+                      />
+                      <div className={`w-11 h-6 rounded-full transition-colors ${
+                        isTeacherPurchase 
+                          ? 'bg-blue-600' 
+                          : (theme === "dark" ? 'bg-gray-600' : 'bg-gray-300')
+                      }`}>
+                        <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${
+                          isTeacherPurchase ? 'translate-x-5' : 'translate-x-0'
+                        } mt-0.5 ml-0.5`}></div>
+                      </div>
+                    </label>
+                  </div>
+                  {isTeacherPurchase && (
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      theme === "dark" ? "bg-blue-900 text-blue-200" : "bg-blue-100 text-blue-800"
+                    }`}>
+                      Debt Tracking Enabled
+                    </span>
+                  )}
+                </div>
+                
+                {/* Teacher Information Form */}
+                {isTeacherPurchase && (
+                  <div className="mt-4 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className={`block text-xs font-medium mb-1 ${
+                          theme === "dark" ? "text-gray-300" : "text-gray-700"
+                        }`}>
+                          Teacher Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={teacherInfo.name}
+                          onChange={(e) => setTeacherInfo({...teacherInfo, name: e.target.value})}
+                          placeholder="Enter teacher name"
+                          className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                            theme === "dark"
+                              ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                              : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
+                          }`}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-medium mb-1 ${
+                          theme === "dark" ? "text-gray-300" : "text-gray-700"
+                        }`}>
+                          Department *
+                        </label>
+                        <select
+                          value={teacherInfo.department}
+                          onChange={(e) => setTeacherInfo({...teacherInfo, department: e.target.value})}
+                          className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                            theme === "dark"
+                              ? "bg-gray-700 border-gray-600 text-white"
+                              : "bg-white border-gray-300 text-gray-900"
+                          }`}
+                          required
+                        >
+                          <option value="">Select Department</option>
+                          <option value="College of Arts and Sciences">College of Arts and Sciences</option>
+                          <option value="College of Business and Accountancy">College of Business and Accountancy</option>
+                          <option value="College of Computer Studies">College of Computer Studies</option>
+                          <option value="College of Criminal Justice Education">College of Criminal Justice Education</option>
+                          <option value="College of Engineering">College of Engineering</option>
+                          <option value="College of Hotel and Tourism Management">College of Hotel and Tourism Management</option>
+                          <option value="College of Nursing">College of Nursing</option>
+                          <option value="College of Teacher Education">College of Teacher Education</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-medium mb-1 ${
+                        theme === "dark" ? "text-gray-300" : "text-gray-700"
+                      }`}>
+                        Employee ID
+                      </label>
+                      <input
+                        type="text"
+                        value={teacherInfo.employee_id}
+                        onChange={(e) => setTeacherInfo({...teacherInfo, employee_id: e.target.value})}
+                        placeholder="T-2024-001"
+                        className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          theme === "dark"
+                            ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                            : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
+                        }`}
+                      />
+                    </div>
+                    <div className={`p-3 rounded-lg ${
+                      theme === "dark" ? "bg-yellow-900/20 border border-yellow-700" : "bg-yellow-50 border border-yellow-200"
+                    }`}>
+                      <div className="flex items-start space-x-2">
+                        <span className="text-yellow-600 mt-0.5">💡</span>
+                        <div>
+                          <p className={`text-xs font-medium ${
+                            theme === "dark" ? "text-yellow-200" : "text-yellow-800"
+                          }`}>
+                            Teacher Debt Tracking
+                          </p>
+                          <p className={`text-xs mt-1 ${
+                            theme === "dark" ? "text-yellow-300" : "text-yellow-700"
+                          }`}>
+                            This purchase will be tracked in the Teachers' Debt Management system. 
+                            Partial payments will create debt records for follow-up.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Cart Items */}
               <div className="p-6">
                 <div className="space-y-3 mb-6 max-h-64 overflow-y-auto custom-scrollbar">
@@ -1025,13 +1272,38 @@ const Sales: React.FC = () => {
                         }`}
                       >
                         <div className="flex justify-between items-start mb-3">
-                          <h4
-                            className={`font-semibold text-sm ${
-                              theme === "dark" ? "text-white" : "text-gray-900"
-                            }`}
-                          >
-                            {item.name}
-                          </h4>
+                          <div>
+                            <h4
+                              className={`font-semibold text-sm ${
+                                theme === "dark" ? "text-white" : "text-gray-900"
+                              }`}
+                            >
+                              {item.name}
+                            </h4>
+                            {/* Show uniform details if available */}
+                            {item.category?.name?.toLowerCase() === 'uniform' && (item.uniform_size || item.uniform_gender) && (
+                              <div className="flex items-center space-x-2 mt-1">
+                                {item.uniform_size && (
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                    theme === 'dark' ? 'bg-purple-900 text-purple-200' : 'bg-purple-100 text-purple-800'
+                                  }`}>
+                                    <span className="mr-1">📏</span>
+                                    {item.uniform_size}
+                                  </span>
+                                )}
+                                {item.uniform_gender && (
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                    theme === 'dark' ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-800'
+                                  }`}>
+                                    <span className="mr-1">
+                                      {item.uniform_gender === 'Men' ? '👨' : '👩'}
+                                    </span>
+                                    {item.uniform_gender}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                           <button
                             onClick={() => removeFromSale(item.id)}
                             className="text-red-500 hover:text-red-700 p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900 transition-colors duration-200"
@@ -1219,31 +1491,48 @@ const Sales: React.FC = () => {
               />
             </div>
 
-            {/* Total and Change */}
+            {/* Total and Change/Balance */}
             <div
               className={`mb-6 p-3 rounded-lg ${
                 theme === "dark" ? "bg-gray-700" : "bg-gray-100"
               }`}
             >
-              <div className="flex justify-between">
-                <span>Change:</span>
-                <span
-                  className={`font-bold ${
-                    changeAmount < 0 ? "text-red-500" : "text-green-500"
-                  }`}
-                >
-                  ₱{(changeAmount || 0).toFixed(2)}
-                </span>
-              </div>
+              {isTeacherPurchase && paidAmount < total ? (
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Total Amount:</span>
+                    <span className="font-bold">₱{total.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Amount Paid:</span>
+                    <span className="font-bold text-green-600">₱{paidAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-2">
+                    <span className="font-semibold">Debt Amount:</span>
+                    <span className="font-bold text-red-600">₱{(total - paidAmount).toFixed(2)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-between">
+                  <span>Change:</span>
+                  <span
+                    className={`font-bold ${
+                      changeAmount < 0 ? "text-red-500" : "text-green-500"
+                    }`}
+                  >
+                    ₱{(changeAmount || 0).toFixed(2)}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="flex space-x-3">
               <button
                 onClick={processSale}
-                disabled={paidAmount < total}
+                disabled={!isTeacherPurchase && paidAmount < total}
                 className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
               >
-                Complete Sale
+                {isTeacherPurchase && paidAmount < total ? 'Complete Sale (Create Debt)' : 'Complete Sale'}
               </button>
               <button
                 onClick={() => setShowPaymentModal(false)}
